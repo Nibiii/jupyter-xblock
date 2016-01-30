@@ -1,9 +1,0 @@
-/* CSS for JupyterXBlock */
-
-.jupyter_block .count {
-    font-weight: bold;
-}
-
-.jupyter_block p {
-    cursor: pointer;
-}
