@@ -86,7 +86,9 @@
 
               <div class="wrapper-uploader-actions xblock-edit-settings">
                 <a href="#" class="upload-action upload-setting" data-change-field-name="{{field.name}}">{% trans "Upload" %}</a>
-                <a href="/{{ field.value }}" target="_blank" class="download-action download-setting">Download</a>
+                {% if field.value %}
+                  <a href="/{{ field.value }}" target="_blank" class="download-action download-setting">Download</a>
+                {% endif %}
               </div>
               <input type="hidden" class="field-data-control" data-field-name="{{field.name}}" id="metadata-file-uploader-{{ field.name }}" value="{{ field.value }}">
 
