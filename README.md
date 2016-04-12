@@ -32,12 +32,12 @@ c.Authenticator.admin_users = {'mal', 'zoe'}
 """ Admins automatically added """
 c.Authenticator.whitelist{'Zoe', 'Chloe'}
 ```
-3. Default edx user is available as (this is created on deployment of JupyterHub):
+3. Default edx user is available as: (this should be created on deployment of JupyterHub):
 ```py
-""" (TODO: Update this scheme) password: edx """
 c.Authenticator.admin_users = set('edx_xblock_jupyter')
+""" (TODO: Update this scheme) password: edx """
 ```
-4. This must be set in the config for API to not result in a 403
+4. The following must be set in the JupyterHub config for API to not result in a 403
 ```py
 c.JupyterHub.admin_access = True
 ```
