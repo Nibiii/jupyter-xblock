@@ -23,21 +23,21 @@ c.Spawner.args = ['--NotebookApp.tornado_settings={ \'headers\': { \'Content-Sec
 #### Admin Acess
 Admin(s) must be defined and admin user credentials must be supplied to the Xblock so that it can perform administrator REST API calls to JupyterHub.
 
-1. Admin users:
+###### Admin users:
 ```py
 c.Authenticator.admin_users = {'mal', 'zoe'}
 ```
-2. User whitelists (optional)
+###### User whitelists (optional)
 ```py
 """ Admins automatically added """
 c.Authenticator.whitelist{'Zoe', 'Chloe'}
 ```
-3. Default edx user is available as: (this should be created on deployment of JupyterHub):
+###### Default edx user is available as: (this should be created on deployment of JupyterHub):
 ```py
 c.Authenticator.admin_users = set('edx_xblock_jupyter')
 """ (TODO: Update this scheme) password: edx """
 ```
-4. The following must be set in the JupyterHub config for API to not result in a 403
+###### The following must be set in the JupyterHub config for API to not result in a 403
 ```py
 c.JupyterHub.admin_access = True
 ```
