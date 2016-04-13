@@ -22,7 +22,7 @@ c.Spawner.args = ['--NotebookApp.tornado_settings={ \'headers\': { \'Content-Sec
 ```
 #### Admin Acess
 Admin(s) must be defined and admin user credentials must be supplied to the Xblock so that it can perform administrator REST API calls to JupyterHub.
-
+Created users MUST have a home directory as well.
 ###### Admin users:
 ```py
 c.Authenticator.admin_users = {'mal', 'zoe'}
