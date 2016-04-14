@@ -12,7 +12,9 @@ from xblock.validation import Validation
 from xblockutils.studio_editable import StudioEditableXBlockMixin, FutureFields
 from xmodule.x_module import XModuleMixin
 
+import http.client
 
+#@Auth.needs_auth_token
 @XBlock.needs('user')
 class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
 
@@ -81,6 +83,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         # TODO set this to the appropriate user url
         # Check the user exists - and create if not
         # start user server with resources
+        self.start_user_server()
         # log user in
         # and return user page url
         # url takes the form of
@@ -89,6 +92,34 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         #http://127.0.0.1:8880/user/tes_user1/notebooks/Welcome%20to%20Python.ipynb
         # Note that the resource name is http encoded string
         return 'http://127.0.0.1:8880/user/tes_user1/notebooks/Welcome%20to%20Python.ipynb'
+
+    def start_user_server(self):
+        username = self.runtime.username
+        headers = get_headers()
+        # TODO set base_url correctly
+        conn = http.client.HTTPConnection("127.0.0.1:8081")
+        conn.request("POST", "/hub/api/users/username/server", headers)
+        res = conn.getresponse()
+        data = res.read()
+        # TODO handle response
+        data.decode("utf-8")
+
+    @needs_authorization_header
+    def get_headers():
+        # TODO set the base url correctly
+        headers = {
+            'referer': "127.0.0.1:8081/hub/",
+            'content-type': "application/json"
+            }
+        return headers
+
+    def needs_authorization_header(func):
+        """ Maybe put this into its own Auth class singleton """
+        def function_wrapper():
+            auth = func()
+            auth.update({"Authorization":"token"})
+            return auth
+        return function_wrapper
 
     def render_template(self, template_path, context):
         template_str = self.resource_string(template_path)
