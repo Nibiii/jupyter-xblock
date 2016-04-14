@@ -78,7 +78,17 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         return frag
 
     def get_current_url_resource(self):
-        return 'http://127.0.0.1:8880/user/name/tree'
+        # TODO set this to the appropriate user url
+        # Check the user exists - and create if not
+        # start user server with resources
+        # log user in
+        # and return user page url
+        # url takes the form of
+        #http://127.0.0.1:8880/user/username/tree
+        # with resource name:
+        #http://127.0.0.1:8880/user/tes_user1/notebooks/Welcome%20to%20Python.ipynb
+        # Note that the resource name is http encoded string
+        return 'http://127.0.0.1:8880/user/tes_user1/notebooks/Welcome%20to%20Python.ipynb'
 
     def render_template(self, template_path, context):
         template_str = self.resource_string(template_path)
