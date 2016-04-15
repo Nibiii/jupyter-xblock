@@ -44,7 +44,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         """
         def function_wrapper(self):
             auth = func(self)
-            auth.update({"Authorization":"token 75457e207ebf4d0ca527206cf825664d"})
+            auth.update({"Authorization":"token 73295e78f9d24677a80bf72edfe071b2"})
             return auth
         return function_wrapper
 
@@ -77,12 +77,42 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         fragment.initialize_js('JupyterhubStudioEditableXBlock')
         return fragment
 
+    def create_jupyterhub_user(self, username):
+        base_url = "http://10.0.2.2:8081/%s"
+        headers = self.get_headers()
+        api_endpoint = "hub/api/users"
+        response = None
+        url = base_url % api_endpoint
+        payload = {"admin":False,"usernames":[username]}
+        try:
+            # TODO check for auth-403 alreadystarted-400 doesntexist-404
+            response = requests.request("POST", url, data=json.dumps(payload), headers=headers)
+            return True
+        except requests.exceptions.RequestException as e:
+            print("[edx_xblock_jupyter] ERROR : %s " % e)
+            return False
+
     def student_view(self, context=None):
+        # X block user details
+        user_service = self.runtime.service(self, 'user')
+        xb_user = user_service.get_current_user()
+        username = xb_user.opt_attrs.get('edx-platform.username')
+
+        if username is None:
+            print("HTTP ERROR 404 User not found")
+
+        # create user
+        if not self.create_jupyterhub_user(username):
+            print("Throw an error here")
+
+
+        # NB TODO log user in - how a session maintained? Perhaps use Oauth
         # Check the user exists - and create if not
+
         context = {
             'self': self,
             'user_is_staff': self.runtime.user_is_staff,
-            'current_url_resource': self.get_current_url_resource()
+            'current_url_resource': self.get_current_url_resource(username)
         }
         template = self.render_template("static/html/jupyterhub_xblock.html", context)
         frag = Fragment(template)
@@ -98,19 +128,10 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         """
         return "Welcome%20to%20Python.ipynb"
 
-    def get_current_url_resource(self):
-        # Perhaps memoize this?
-        user_service = self.runtime.service(self, 'user')
-        xb_user = user_service.get_current_user()
-        username = xb_user.opt_attrs.get('edx-platform.username')
-        # NB TODO log user in - how a session maintained? Perhaps use Oauth
-        if username is None:
-            print("nasa")
-            #raise web.HTTPError(404)
+    def get_current_url_resource(self, username):
         notebook = self.get_unit_notebook()
         self.start_user_server(username)
         url = "http://127.0.0.1:8880/user/%s/notebooks/%s" % (username, notebook)
-
         return url
 
     @needs_authorization_header
@@ -126,15 +147,19 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         Starts the user server for handling Notebooks
         TODO set base url correctly.
         """
-        base_url = "http://127.0.0.1:8081/%s"
+        base_url = "http://10.0.2.2:8081/%s"
         headers = self.get_headers()
         api_endpoint = "hub/api/users/%s/server" % username
         response = None
+        url = base_url % api_endpoint
         try:
-            response = requests.request("POST", base_url % api_endpoint, headers=headers)
-        except:
-            print("HTTP ERROR 404")
-            #raise web.HTTPError(404)
+            # TODO check for auth-403 alreadystarted-400 doesntexist-404
+            response = requests.request("POST", url, headers=headers)
+            return True
+        except requests.exceptions.RequestException as e:
+            print("[edx_xblock_jupyter] ERROR : %s " % e)
+            return False
+
 
     def render_template(self, template_path, context):
         template_str = self.resource_string(template_path)
