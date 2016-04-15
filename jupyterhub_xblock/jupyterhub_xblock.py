@@ -42,9 +42,9 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         Maybe put this into its own Auth class singleton
         Decorator to make sure API calls are authorized
         """
-        def function_wrapper():
-            auth = func()
-            auth.update({"Authorization":"376c2353d6a54e98aab24031dbdba528"})
+        def function_wrapper(self):
+            auth = func(self)
+            auth.update({"Authorization":"token 75457e207ebf4d0ca527206cf825664d"})
             return auth
         return function_wrapper
 
@@ -78,6 +78,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         return fragment
 
     def student_view(self, context=None):
+        # Check the user exists - and create if not
         context = {
             'self': self,
             'user_is_staff': self.runtime.user_is_staff,
@@ -90,43 +91,50 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         frag.initialize_js('JupyterhubXBlock')
         return frag
 
+    def get_unit_notebook(self):
+        """
+        Returns the Notebook file associated with this unit for upload to the
+        user's Notebook server.
+        """
+        return "Welcome%20to%20Python.ipynb"
+
     def get_current_url_resource(self):
-        # TODO set this to the appropriate user url
-        # Check the user exists - and create if not
-        # start user server with resources
-        print(dir(self))
-        username = "tes_user1"
-        notebook = "Welcome%20to%20Python.ipynb"
+        # Perhaps memoize this?
+        user_service = self.runtime.service(self, 'user')
+        xb_user = user_service.get_current_user()
+        username = xb_user.opt_attrs.get('edx-platform.username')
+        # NB TODO log user in - how a session maintained? Perhaps use Oauth
+        if username is None:
+            print("nasa")
+            #raise web.HTTPError(404)
+        notebook = self.get_unit_notebook()
         self.start_user_server(username)
         url = "http://127.0.0.1:8880/user/%s/notebooks/%s" % (username, notebook)
-        # log user in
-        # and return user page url
-        # url takes the form of
-        #http://127.0.0.1:8880/user/username/tree
-        # with resource name:
-        #http://127.0.0.1:8880/user/tes_user1/notebooks/Welcome%20to%20Python.ipynb
-        # Note that the resource name is http encoded string
+
         return url
 
-    def start_user_server(self, username):
-        """ Starts the user server for handling Notebooks """
-        # TODO set base_url correctly
-        base_url = "http://127.0.0.1:8081/%s"
-        headers = get_headers()
-        api_endpoint = "hub/api/users/%s/server" % username
-        response = requests.request("POST", base_url % api_endpoint, headers=headers)
-        print(response)
-        # TODO handle response
-        #data.decode("utf-8")
-
     @needs_authorization_header
-    def get_headers():
-        # TODO set the base url correctly
+    def get_headers(self):
         headers = {
             'referer': "127.0.0.1:8081/hub/",
             'content-type': "application/json"
             }
         return headers
+
+    def start_user_server(self, username):
+        """
+        Starts the user server for handling Notebooks
+        TODO set base url correctly.
+        """
+        base_url = "http://127.0.0.1:8081/%s"
+        headers = self.get_headers()
+        api_endpoint = "hub/api/users/%s/server" % username
+        response = None
+        try:
+            response = requests.request("POST", base_url % api_endpoint, headers=headers)
+        except:
+            print("HTTP ERROR 404")
+            #raise web.HTTPError(404)
 
     def render_template(self, template_path, context):
         template_str = self.resource_string(template_path)

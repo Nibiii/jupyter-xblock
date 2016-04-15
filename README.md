@@ -46,6 +46,12 @@ c.JupyterHub.admin_access = True
 ```py
 Fill in settings
 ```
+###### Note the following header syntax for making privileged calls
+(This is already habdled in the Xblock)
+
+```py
+{"Authorization":"token 75457e207ebf4d0ca527206cf825664d"}
+```
 
 ## REST API calls to JupyterHub
 The Xblock creates a user by calling the JupyterHub REST API whenever a user attempts to access a Jupyter Notebook. The created user on JupyterHub will share the unique username used on the edx-platform. In this scenario each user will have their own Notebook.
