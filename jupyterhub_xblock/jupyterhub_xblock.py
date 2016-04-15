@@ -12,7 +12,7 @@ from xblock.validation import Validation
 from xblockutils.studio_editable import StudioEditableXBlockMixin, FutureFields
 from xmodule.x_module import XModuleMixin
 
-import http.client
+import requests
 
 #@Auth.needs_auth_token
 @XBlock.needs('user')
@@ -36,6 +36,17 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
     )
 
     editable_fields = ('display_name', 'file_noteBook')
+
+    def needs_authorization_header(func):
+        """
+        Maybe put this into its own Auth class singleton
+        Decorator to make sure API calls are authorized
+        """
+        def function_wrapper():
+            auth = func()
+            auth.update({"Authorization":"376c2353d6a54e98aab24031dbdba528"})
+            return auth
+        return function_wrapper
 
     def resource_string(self, path):
         """Handy helper for getting resources from our kit."""
@@ -83,7 +94,11 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         # TODO set this to the appropriate user url
         # Check the user exists - and create if not
         # start user server with resources
-        self.start_user_server()
+        print(dir(self))
+        username = "tes_user1"
+        notebook = "Welcome%20to%20Python.ipynb"
+        self.start_user_server(username)
+        url = "http://127.0.0.1:8880/user/%s/notebooks/%s" % (username, notebook)
         # log user in
         # and return user page url
         # url takes the form of
@@ -91,18 +106,18 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         # with resource name:
         #http://127.0.0.1:8880/user/tes_user1/notebooks/Welcome%20to%20Python.ipynb
         # Note that the resource name is http encoded string
-        return 'http://127.0.0.1:8880/user/tes_user1/notebooks/Welcome%20to%20Python.ipynb'
+        return url
 
-    def start_user_server(self):
-        username = self.runtime.username
-        headers = get_headers()
+    def start_user_server(self, username):
+        """ Starts the user server for handling Notebooks """
         # TODO set base_url correctly
-        conn = http.client.HTTPConnection("127.0.0.1:8081")
-        conn.request("POST", "/hub/api/users/username/server", headers)
-        res = conn.getresponse()
-        data = res.read()
+        base_url = "http://127.0.0.1:8081/%s"
+        headers = get_headers()
+        api_endpoint = "hub/api/users/%s/server" % username
+        response = requests.request("POST", base_url % api_endpoint, headers=headers)
+        print(response)
         # TODO handle response
-        data.decode("utf-8")
+        #data.decode("utf-8")
 
     @needs_authorization_header
     def get_headers():
@@ -112,14 +127,6 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             'content-type': "application/json"
             }
         return headers
-
-    def needs_authorization_header(func):
-        """ Maybe put this into its own Auth class singleton """
-        def function_wrapper():
-            auth = func()
-            auth.update({"Authorization":"token"})
-            return auth
-        return function_wrapper
 
     def render_template(self, template_path, context):
         template_str = self.resource_string(template_path)
