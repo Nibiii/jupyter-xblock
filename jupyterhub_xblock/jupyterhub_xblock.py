@@ -104,8 +104,13 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         # create user
         if not self.create_jupyterhub_user(username):
             print("Throw an error here")
+        # Start the user server if not started
+        self.start_user_server(username)
+        # try and upload the course unit ipynb if it doesn't exist
 
-
+        user_cookie = self.access_user_server(username)
+        if user_cookie is None:
+            print("Throw an error here")
         # NB TODO log user in - how a session maintained? Perhaps use Oauth
         # Check the user exists - and create if not
 
@@ -121,6 +126,23 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         frag.initialize_js('JupyterhubXBlock')
         return frag
 
+    def access_user_server(self, username):
+        """
+        Return an authentication cookie associated with the user
+        """
+        base_url = "http://10.0.2.2:8081/%s"
+        headers = self.get_headers()
+        api_endpoint = "hub/api/users/%s/admin-access" % username
+        response = None
+        url = base_url % api_endpoint
+        try:
+            # TODO check for
+            response = requests.request("POST", url, headers=headers)
+            return {'Cookie':response.headers.pop('set-cookie')}
+        except requests.exceptions.RequestException as e:
+            print("[edx_xblock_jupyter] ERROR : %s " % e)
+            return None
+
     def get_unit_notebook(self):
         """
         Returns the Notebook file associated with this unit for upload to the
@@ -130,14 +152,13 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
 
     def get_current_url_resource(self, username):
         notebook = self.get_unit_notebook()
-        self.start_user_server(username)
         url = "http://127.0.0.1:8880/user/%s/notebooks/%s" % (username, notebook)
         return url
 
     @needs_authorization_header
     def get_headers(self):
         headers = {
-            'referer': "127.0.0.1:8081/hub/",
+            'referer': "0.0.0.0:8081/hub/",
             'content-type': "application/json"
             }
         return headers
