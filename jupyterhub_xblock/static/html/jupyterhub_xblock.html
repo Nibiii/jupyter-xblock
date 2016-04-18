@@ -1,9 +1,12 @@
 <div class="jupyterhub_xblock_block">
   {% if user_is_staff and not self.url_resource %}
     <p>
-      создать note по линку <a href=""></a>
+      Add a course item notebook <a href=""></a>
     </p>
   {% elif current_url_resource %}
+    <script type="text/javascript">
+      var user_cookie = "{{ user_cookie }}";
+    </script>
     <iframe id='iframe-jupyterhub'
             src='{{ current_url_resource }}'
             width='100%'

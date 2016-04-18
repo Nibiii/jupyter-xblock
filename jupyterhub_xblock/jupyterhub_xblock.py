@@ -111,13 +111,15 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         user_cookie = self.access_user_server(username)
         if user_cookie is None:
             print("Throw an error here")
+        user_cookie = json.dumps(user_cookie)
         # NB TODO log user in - how a session maintained? Perhaps use Oauth
         # Check the user exists - and create if not
 
         context = {
             'self': self,
             'user_is_staff': self.runtime.user_is_staff,
-            'current_url_resource': self.get_current_url_resource(username)
+            'current_url_resource': self.get_current_url_resource(username),
+            'user_cookie': user_cookie
         }
         template = self.render_template("static/html/jupyterhub_xblock.html", context)
         frag = Fragment(template)
