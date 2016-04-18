@@ -12,6 +12,8 @@ from xblock.validation import Validation
 from xblockutils.studio_editable import StudioEditableXBlockMixin, FutureFields
 from xmodule.x_module import XModuleMixin
 
+from django.utils.encoding import iri_to_uri
+
 import requests
 
 #@Auth.needs_auth_token
@@ -150,7 +152,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         Returns the Notebook file associated with this unit for upload to the
         user's Notebook server.
         """
-        return "Welcome%20to%20Python.ipynb"
+        return iri_to_uri("Welcome to Python.ipynb")
 
     def get_current_url_resource(self, username):
         notebook = self.get_unit_notebook()
