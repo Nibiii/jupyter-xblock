@@ -1,15 +1,21 @@
 /* Javascript for JupyterhubXBlock. */
 function JupyterhubXBlock(runtime, element) {
-
-  /* TODO support for other browsers */
-  chrome.webRequest.onBeforeSendHeaders.addListener(
-    function(details){
-      var headers = details.requestHeaders;
-      debugger;
-      return { requestHeaders : headers };
+  // run api call that returns a set-cookie
+  $(document).ready(function() {
+    $.ajax({
+    type: "POST",
+    url: cookie_api_url,
+    crossDomain: true,
+    xhrFields: {
+      withCredentials: true
     },
-    { urls: [ "*://*/user/*/notebooks/*" ] },
-    [ 'blocking', 'requestHeaders' ]
-  );
+    beforeSend: function(xhr, settings){
+        xhr.setRequestHeader("Authorization", auth_token);
+    },
+    success: function(xhr, data){
+      alert("YAY");
+    }
+    });
+  });
 
 }

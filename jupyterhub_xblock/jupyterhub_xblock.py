@@ -13,6 +13,7 @@ from xblockutils.studio_editable import StudioEditableXBlockMixin, FutureFields
 from xmodule.x_module import XModuleMixin
 
 from django.utils.encoding import iri_to_uri
+from django.http import HttpResponse
 
 import requests
 
@@ -79,49 +80,27 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         fragment.initialize_js('JupyterhubStudioEditableXBlock')
         return fragment
 
-    def create_jupyterhub_user(self, username):
-        base_url = "http://10.0.2.2:8081/%s"
-        headers = self.get_headers()
-        api_endpoint = "hub/api/users"
-        response = None
-        url = base_url % api_endpoint
-        payload = {"admin":False,"usernames":[username]}
-        try:
-            # TODO check for auth-403 alreadystarted-400 doesntexist-404
-            response = requests.request("POST", url, data=json.dumps(payload), headers=headers)
-            return True
-        except requests.exceptions.RequestException as e:
-            print("[edx_xblock_jupyter] ERROR : %s " % e)
-            return False
-
     def student_view(self, context=None):
         # X block user details
         user_service = self.runtime.service(self, 'user')
         xb_user = user_service.get_current_user()
         username = xb_user.opt_attrs.get('edx-platform.username')
-
         if username is None:
             print("HTTP ERROR 404 User not found")
 
-        # create user
-        if not self.create_jupyterhub_user(username):
-            print("Throw an error here")
-        # Start the user server if not started
-        self.start_user_server(username)
-        # try and upload the course unit ipynb if it doesn't exist
+        # get the course details
+        #course = self.runtime.service(self, 'course')
 
-        user_cookie = self.access_user_server(username)
-        if user_cookie is None:
+        file_name = self.get_unit_notebook
+
+        # create user notebook assuming the base file exists
+        if not self.create_user_notebook(username, course, ):
             print("Throw an error here")
-        user_cookie = json.dumps(user_cookie)
-        # NB TODO log user in - how a session maintained? Perhaps use Oauth
-        # Check the user exists - and create if not
 
         context = {
             'self': self,
             'user_is_staff': self.runtime.user_is_staff,
             'current_url_resource': self.get_current_url_resource(username),
-            'user_cookie': user_cookie
         }
         template = self.render_template("static/html/jupyterhub_xblock.html", context)
         frag = Fragment(template)
@@ -129,6 +108,22 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         frag.add_javascript(self.resource_string("static/js/src/jupyterhub_xblock.js"))
         frag.initialize_js('JupyterhubXBlock')
         return frag
+
+
+    def create_user_notebook(self, username, course, file_name):
+        base_url = "http://10.0.2.2:3334/%s"
+        headers = self.get_headers()
+        api_endpoint = "v1/api/notebooks/users/courses/files/"
+        response = None
+        url = base_url % api_endpoint
+        payload = {"notey_notey":{"username":username,"course":course,"file":file_name}}
+        try:
+            # TODO check for auth-403 alreadystarted-400 doesntexist-404
+            response = requests.request("POST", url, data=json.dumps(payload), headers=headers)
+            return True
+        except requests.exceptions.RequestException as e:
+            print("[edx_xblock_jupyter] ERROR : %s " % e)
+            return False
 
     def access_user_server(self, username):
         """
@@ -142,7 +137,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         try:
             # TODO check for
             response = requests.request("POST", url, headers=headers)
-            return {'Cookie':response.headers.pop('set-cookie')}
+            return response.headers.pop('set-cookie')
         except requests.exceptions.RequestException as e:
             print("[edx_xblock_jupyter] ERROR : %s " % e)
             return None

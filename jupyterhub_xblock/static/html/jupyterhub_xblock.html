@@ -4,10 +4,7 @@
       Add a course item notebook <a href=""></a>
     </p>
   {% elif current_url_resource %}
-    <script type="text/javascript">
-      var user_cookie = "{{ user_cookie }}";
-    </script>
-    <iframe id='iframe-jupyterhub'
+    <iframe id='iframe-jupyter'
             src='{{ current_url_resource }}'
             width='100%'
             height='720'
