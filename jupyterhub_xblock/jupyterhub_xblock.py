@@ -15,6 +15,8 @@ from xmodule.x_module import XModuleMixin
 from django.utils.encoding import iri_to_uri
 from django.http import HttpResponse
 
+import urllib
+
 import requests
 
 #@Auth.needs_auth_token
@@ -38,7 +40,13 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         resettable_editor=False
     )
 
-    editable_fields = ('display_name', 'file_noteBook')
+    course_unit = String(
+        display_name="Course Unit",
+        scope=Scope.settings,
+        resettable_editor=False
+    )
+
+    editable_fields = ('display_name', 'file_noteBook', 'course_unit')
 
     def needs_authorization_header(func):
         """
@@ -90,17 +98,19 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
 
         # get the course details
         #course = self.runtime.service(self, 'course')
+        course_unit_name = str(self.course_unit)
+        resource = str(self.file_noteBook)
 
-        file_name = self.get_unit_notebook
-
-        # create user notebook assuming the base file exists
-        if not self.create_user_notebook(username, course, ):
-            print("Throw an error here")
+        #check of user notebook exists
+        if not self.user_notebook_exists(username, course_unit_name, resource):
+            # create user notebook assuming the base file exists
+            if not self.create_user_notebook(username, course_unit_name, resource):
+                print("Throw an error here")
 
         context = {
             'self': self,
             'user_is_staff': self.runtime.user_is_staff,
-            'current_url_resource': self.get_current_url_resource(username),
+            'current_url_resource': self.get_current_url_resource(username, course_unit_name, resource),
         }
         template = self.render_template("static/html/jupyterhub_xblock.html", context)
         frag = Fragment(template)
@@ -109,14 +119,42 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         frag.initialize_js('JupyterhubXBlock')
         return frag
 
+    def user_notebook_exists(self, username, course_unit_name, resource):
+        """
+        Tests tot see if user notebook exists
+        """
+        payload = {"notey_notey":{"username":username,"course":course_unit_name,"file":resource}}
+        try:
+            resp = requests.request("GET", "http://10.0.2.2:3334/v1/api/notebooks/users/courses/files", data=json.dumps(payload))
+            print(resp)
+            return True
+        except requests.exceptions.RequestException as e:
+            print(e)
+            return False
 
-    def create_user_notebook(self, username, course, file_name):
+    def get_xblock_notebook(self):
+        """
+        Gets the uploaded notebook from studio
+        """
+        try:
+            resp = requests.request("GET", "http://0.0.0.0:8001/%s" % self.file_noteBook)
+            return resp.content
+        except requests.exceptions.RequestException as e:
+            print(e)
+            return False
+
+    def create_user_notebook(self, username, course_unit_name, resource):
         base_url = "http://10.0.2.2:3334/%s"
         headers = self.get_headers()
         api_endpoint = "v1/api/notebooks/users/courses/files/"
         response = None
         url = base_url % api_endpoint
-        payload = {"notey_notey":{"username":username,"course":course,"file":file_name}}
+        # if base file exists remotely
+        #loaded_file = {}
+        #else
+        loaded_file = self.get_xblock_notebook()
+        # end
+        payload = {"notey_notey":{"username":username,"course":course_unit_name,"file":resource,"data":loaded_file}}
         try:
             # TODO check for auth-403 alreadystarted-400 doesntexist-404
             response = requests.request("POST", url, data=json.dumps(payload), headers=headers)
@@ -147,11 +185,15 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         Returns the Notebook file associated with this unit for upload to the
         user's Notebook server.
         """
-        return iri_to_uri("Welcome to Python.ipynb")
+        #return iri_to_uri("Welcome to Python.ipynb")
+        return "Welcome to Python.ipynb"
 
-    def get_current_url_resource(self, username):
-        notebook = self.get_unit_notebook()
-        url = "http://127.0.0.1:8880/user/%s/notebooks/%s" % (username, notebook)
+    def get_current_url_resource(self, username, course, filename):
+        """
+        Returns the url for the API call to fetch a notebook
+        """
+        url = "http://0.0.0.0:3334/v1/api/notebooks/users/%s/courses/%s/files/%s" % (urllib.quote(username), urllib.quote(course), urllib.quote(filename))
+        print(url)
         return url
 
     @needs_authorization_header
