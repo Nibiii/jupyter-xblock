@@ -97,15 +97,21 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
                 print("HTTP ERROR 404 User not found")
 
             # get the course details
-            #course = self.runtime.service(self, 'course')
             course_unit_name = str(self.course_unit)
             resource = str(self.file_noteBook)
 
-            #check of user notebook exists
+            #check of user notebook & base notebook exists
             if not self.user_notebook_exists(username, course_unit_name, resource):
+                print("User notebook does not exist")
+                # check the base file exists
+                if not self.base_file_exists(course_unit_name, resource):
+                    print("Base file definitely does not exist")
+                    # create the base file
+                    self.create_base_file(course_unit_name, resource)
                 # create user notebook assuming the base file exists
                 if not self.create_user_notebook(username, course_unit_name, resource):
                     print("Throw an error here")
+
 
             context = {
                 'self': self,
@@ -157,12 +163,27 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         response = None
         url = base_url % api_endpoint
         payload = {"notey_notey":{"course":course_unit_name,"file":resource}}
-        print("--------------------")
         try:
             # TODO check for auth-403 alreadystarted-400 doesntexist-404
             resp = requests.request("GET", url, data=json.dumps(payload), headers=headers)
             resp = resp.json()
             return resp["result"]
+        except requests.exceptions.RequestException as e:
+            print("[edx_xblock_jupyter] ERROR : %s " % e)
+            return False
+
+    def create_base_file(self, course_unit_name, resource):
+        base_url = "http://10.0.2.2:3334/%s"
+        headers = self.get_headers()
+        api_endpoint = "v1/api/notebooks/courses/files/"
+        response = None
+        url = base_url % api_endpoint
+        loaded_file = self.get_xblock_notebook()
+        payload = {"notey_notey":{"course":course_unit_name,"file":resource,"data":loaded_file}}
+        try:
+            # TODO check for auth-403 alreadystarted-400 doesntexist-404
+            response = requests.request("POST", url, data=json.dumps(payload), headers=headers)
+            return True
         except requests.exceptions.RequestException as e:
             print("[edx_xblock_jupyter] ERROR : %s " % e)
             return False
@@ -173,12 +194,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         api_endpoint = "v1/api/notebooks/users/courses/files/"
         response = None
         url = base_url % api_endpoint
-        if self.base_file_exists(course_unit_name, resource):
-            loaded_file = {}
-        else:
-            loaded_file = self.get_xblock_notebook()
-
-        payload = {"notey_notey":{"username":username,"course":course_unit_name,"file":resource,"data":loaded_file}}
+        payload = {"notey_notey":{"username":username,"course":course_unit_name,"file":resource}}
         try:
             # TODO check for auth-403 alreadystarted-400 doesntexist-404
             response = requests.request("POST", url, data=json.dumps(payload), headers=headers)
