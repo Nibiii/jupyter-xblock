@@ -2,7 +2,11 @@ import json
 from django.utils.translation import ugettext
 import pkg_resources
 
-from django.template import Template, Context
+from django.template import Template, Context, RequestContext
+
+#from django.core.context_processors import request
+#from xblock.django.request import DjangoWebobRequest
+from crequest.middleware import CrequestMiddleware
 
 from xblock.core import XBlock
 from xblock.exceptions import JsonHandlerError
@@ -15,11 +19,13 @@ from xmodule.x_module import XModuleMixin
 from django.utils.encoding import iri_to_uri
 from django.http import HttpResponse
 
+from django.middleware import csrf
+
 import urllib
 
 import requests
 
-#@Auth.needs_auth_token
+@XBlock.needs('request')
 @XBlock.needs('user')
 class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
 
@@ -64,10 +70,11 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         data = pkg_resources.resource_string(__name__, path)
         return data.decode("utf8")
 
-    def studio_view(self, context):
+    def studio_view(self, context, request=None):
         """
         Render a form for editing this XBlock
         """
+
         fragment = Fragment()
         context = {'fields': [],
                    'courseKey': self.location.course_key}
@@ -88,7 +95,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         fragment.initialize_js('JupyterhubStudioEditableXBlock')
         return fragment
 
-    def student_view(self, context=None):
+    def student_view(self, context=None, request=None):
         if not self.runtime.user_is_staff:
             user_service = self.runtime.service(self, 'user')
             xb_user = user_service.get_current_user()
@@ -100,6 +107,37 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             course_unit_name = str(self.course_unit)
             resource = str(self.file_noteBook)
 
+            cr = CrequestMiddleware.get_request()
+            token = csrf.get_token(cr)
+            sessionid = cr.session.session_key
+
+            # make api to get grant
+            headers = {
+                 "Host":"0.0.0.0:8000",
+                 "X-CSRFToken":token,
+                 "Referer":"http://0.0.0.0:8000",
+                 "Cookie": "djdt=hide; edxloggedin=true; csrftoken=%s; sessionid=%s" % (token, sessionid)
+            }
+            sifu_id = "cab1f254be91128c28a0"
+            state = "3835662"
+            base_url = "http://0.0.0.0:8000"
+            url = "%s/oauth2/authorize/?client_id=%s&state=%s&redirect_uri=http://0.0.0.0:8000&response_type=code" % (base_url,sifu_id,state)
+            auth_grant = None
+            print(url)
+            try:
+                resp = requests.request("GET", url, headers=headers, allow_redirects=False)
+                print(resp.headers)
+                resp = requests.request("GET", resp.headers['location'],headers=headers, allow_redirects=False)
+                print(resp.headers)
+                resp = requests.request("GET", resp.headers['location'],headers=headers, allow_redirects=False)
+                print(resp.headers)
+                resp = requests.request("GET", resp.headers['location'],headers=headers, allow_redirects=False)
+                print(resp.headers)
+                # to delete post http://0.0.0.0:8000/admin/oauth2/grant/
+                # csrfmiddlewaretoken=dZXgCmUiBMTwfjwFZ702h8pg5O0ZkktA&_selected_action=32&action=delete_selected&post=yes
+                # as form data
+            except requests.exceptions.RequestException as e:
+                print(e)
             #check of user notebook & base notebook exists
             if not self.user_notebook_exists(username, course_unit_name, resource):
                 print("User notebook does not exist")
