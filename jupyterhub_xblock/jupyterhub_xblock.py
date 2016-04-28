@@ -96,9 +96,52 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         fragment.initialize_js('JupyterhubStudioEditableXBlock')
         return fragment
 
-    def get_auth_code(self, redirect_url):
+    def parse_auth_code(self, redirect_url):
         qs = urlparse(redirect_url).query
         return parse_qs(qs)['code']
+
+    def get_authorization_grant(self, token, sessionid, host):
+        """
+        Get the authorization code for this user, for use in allowing edx to be
+        an oauth2 provider to sifu.
+        """
+        headers = {
+             "Host":host, # Get base url from env variable
+             "X-CSRFToken":token,
+             "Referer":"http://" % host,
+             "Cookie": "djdt=hide; edxloggedin=true; csrftoken=%s; sessionid=%s" % (token, sessionid)
+        }
+
+        sifu_id = "cab1f254be91128c28a0" # pull this from an enironment variable
+        state = "3835662" # randomly generate this
+        base_url = "http://%s" % host
+        url = "%s/oauth2/authorize/?client_id=%s&state=%s&redirect_uri=%s&response_type=code" % (base_url,sifu_id,state,base_url)
+        auth_grant = None
+        print(url)
+        try:
+            #"GET /oauth2/authorize/"
+            resp = requests.request("GET", url, headers=headers, allow_redirects=False)
+            # "GET /oauth2/authorize/confirm"
+            resp = requests.request("GET", resp.headers['location'],headers=headers, allow_redirects=False)
+            # "GET /oauth2/redirect ""
+            resp = requests.request("GET", resp.headers['location'],headers=headers, allow_redirects=False)
+            authorization_grant = self.parse_auth_code(resp.headers['location'])
+            #"GET /?state=3835662&code=48dbd69c8028c61d35df319d04f9d827cfe4c51c HTTP/1.1" 302 0 "
+            resp = requests.request("GET", resp.headers['location'],headers=headers, allow_redirects=False)
+            return authorization_grant
+            # to delete post http://0.0.0.0:8000/admin/oauth2/grant/
+            # csrfmiddlewaretoken=dZXgCmUiBMTwfjwFZ702h8pg5O0ZkktA&_selected_action=32&action=delete_selected&post=yes
+            # as form data
+        except requests.exceptions.RequestException as e:
+            print(e)
+            return None
+
+    def get_auth_token(self, auth_grant):
+        """
+        Gets the authentication token associated with this user through Sifu's
+        calls to the edx oauth2 api.
+        """
+        return ""
 
     def student_view(self, context=None, request=None):
         if not self.runtime.user_is_staff:
@@ -117,35 +160,10 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             sessionid = cr.session.session_key
             host = cr.META['HTTP_HOST']
 
-            # make api to get grant
-            headers = {
-                 "Host":host, # Get base url from env variable
-                 "X-CSRFToken":token,
-                 "Referer":"http://" % host,
-                 "Cookie": "djdt=hide; edxloggedin=true; csrftoken=%s; sessionid=%s" % (token, sessionid)
-            }
-            sifu_id = "cab1f254be91128c28a0" # pull this from an enironment variable
-            state = "3835662" # randomly generate this
-            base_url = "http://%s" % host
-            url = "%s/oauth2/authorize/?client_id=%s&state=%s&redirect_uri=%s&response_type=code" % (base_url,sifu_id,state,base_url)
-            auth_grant = None
-            print(url)
-            try:
-                #"GET /oauth2/authorize/"
-                resp = requests.request("GET", url, headers=headers, allow_redirects=False)
-                # "GET /oauth2/authorize/confirm"
-                resp = requests.request("GET", resp.headers['location'],headers=headers, allow_redirects=False)
-                # "GET /oauth2/redirect ""
-                resp = requests.request("GET", resp.headers['location'],headers=headers, allow_redirects=False)
-                authorization_grant = self.get_auth_code(resp.headers['location'])
-                #"GET /?state=3835662&code=48dbd69c8028c61d35df319d04f9d827cfe4c51c HTTP/1.1" 302 0 "
-                resp = requests.request("GET", resp.headers['location'],headers=headers, allow_redirects=False)
+            authorization_grant = self.get_authorization_grant(token, sessionid, host)
+            # Get a token from Sifu
+            sifu_token = self.get_auth_token(authorization_grant)
 
-                # to delete post http://0.0.0.0:8000/admin/oauth2/grant/
-                # csrfmiddlewaretoken=dZXgCmUiBMTwfjwFZ702h8pg5O0ZkktA&_selected_action=32&action=delete_selected&post=yes
-                # as form data
-            except requests.exceptions.RequestException as e:
-                print(e)
             #check of user notebook & base notebook exists
             if not self.user_notebook_exists(username, course_unit_name, resource):
                 print("User notebook does not exist")
