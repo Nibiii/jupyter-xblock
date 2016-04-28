@@ -294,23 +294,6 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             print("[edx_xblock_jupyter] ERROR : %s " % e)
             return False
 
-    def access_user_server(self, username):
-        """
-        Return an authentication cookie associated with the user
-        """
-        base_url = "http://10.0.2.2:8081/%s"
-        headers = self.get_headers()
-        api_endpoint = "hub/api/users/%s/admin-access" % username
-        response = None
-        url = base_url % api_endpoint
-        try:
-            # TODO check for
-            response = requests.request("POST", url, headers=headers)
-            return response.headers.pop('set-cookie')
-        except requests.exceptions.RequestException as e:
-            print("[edx_xblock_jupyter] ERROR : %s " % e)
-            return None
-
     def get_current_url_resource(self, username, course, filename):
         """
         Returns the url for the API call to fetch a notebook
