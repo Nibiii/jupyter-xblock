@@ -7,6 +7,7 @@ from django.template import Template, Context, RequestContext
 #from django.core.context_processors import request
 #from xblock.django.request import DjangoWebobRequest
 from crequest.middleware import CrequestMiddleware
+from urlparse import urlparse, parse_qs
 
 from xblock.core import XBlock
 from xblock.exceptions import JsonHandlerError
@@ -95,6 +96,10 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         fragment.initialize_js('JupyterhubStudioEditableXBlock')
         return fragment
 
+    def get_auth_code(self, redirect_url):
+        qs = urlparse(redirect_url).query
+        return parse_qs(qs)['code']
+
     def student_view(self, context=None, request=None):
         if not self.runtime.user_is_staff:
             user_service = self.runtime.service(self, 'user')
@@ -110,29 +115,32 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             cr = CrequestMiddleware.get_request()
             token = csrf.get_token(cr)
             sessionid = cr.session.session_key
+            host = cr.META['HTTP_HOST']
 
             # make api to get grant
             headers = {
-                 "Host":"0.0.0.0:8000",
+                 "Host":host, # Get base url from env variable
                  "X-CSRFToken":token,
-                 "Referer":"http://0.0.0.0:8000",
+                 "Referer":"http://" % host,
                  "Cookie": "djdt=hide; edxloggedin=true; csrftoken=%s; sessionid=%s" % (token, sessionid)
             }
-            sifu_id = "cab1f254be91128c28a0"
-            state = "3835662"
-            base_url = "http://0.0.0.0:8000"
-            url = "%s/oauth2/authorize/?client_id=%s&state=%s&redirect_uri=http://0.0.0.0:8000&response_type=code" % (base_url,sifu_id,state)
+            sifu_id = "cab1f254be91128c28a0" # pull this from an enironment variable
+            state = "3835662" # randomly generate this
+            base_url = "http://%s" % host
+            url = "%s/oauth2/authorize/?client_id=%s&state=%s&redirect_uri=%s&response_type=code" % (base_url,sifu_id,state,base_url)
             auth_grant = None
             print(url)
             try:
+                #"GET /oauth2/authorize/"
                 resp = requests.request("GET", url, headers=headers, allow_redirects=False)
-                print(resp.headers)
+                # "GET /oauth2/authorize/confirm"
                 resp = requests.request("GET", resp.headers['location'],headers=headers, allow_redirects=False)
-                print(resp.headers)
+                # "GET /oauth2/redirect ""
                 resp = requests.request("GET", resp.headers['location'],headers=headers, allow_redirects=False)
-                print(resp.headers)
+                authorization_grant = self.get_auth_code(resp.headers['location'])
+                #"GET /?state=3835662&code=48dbd69c8028c61d35df319d04f9d827cfe4c51c HTTP/1.1" 302 0 "
                 resp = requests.request("GET", resp.headers['location'],headers=headers, allow_redirects=False)
-                print(resp.headers)
+
                 # to delete post http://0.0.0.0:8000/admin/oauth2/grant/
                 # csrfmiddlewaretoken=dZXgCmUiBMTwfjwFZ702h8pg5O0ZkktA&_selected_action=32&action=delete_selected&post=yes
                 # as form data
