@@ -108,7 +108,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         headers = {
              "Host":host, # Get base url from env variable
              "X-CSRFToken":token,
-             "Referer":"http://" % host,
+             "Referer":"http://%s" % host,
              "Cookie": "djdt=hide; edxloggedin=true; csrftoken=%s; sessionid=%s" % (token, sessionid)
         }
 
@@ -116,8 +116,6 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         state = "3835662" # randomly generate this
         base_url = "http://%s" % host
         url = "%s/oauth2/authorize/?client_id=%s&state=%s&redirect_uri=%s&response_type=code" % (base_url,sifu_id,state,base_url)
-        auth_grant = None
-        print(url)
         try:
             #"GET /oauth2/authorize/"
             resp = requests.request("GET", url, headers=headers, allow_redirects=False)
@@ -141,7 +139,19 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         Gets the authentication token associated with this user through Sifu's
         calls to the edx oauth2 api.
         """
-        return ""
+        payload = {
+            "auth_code":auth_grant,
+            "grant_type":"edx_auth_code"
+        }
+        url = "http://localhost:3334/token"
+
+        headers = {
+            'content-type': "application/json",
+            'cache-control': "no-cache",
+        }
+        response = requests.request("POST", url, data=payload, headers=headers)
+        print(response.text)
+        return "token"
 
     def student_view(self, context=None, request=None):
         if not self.runtime.user_is_staff:
