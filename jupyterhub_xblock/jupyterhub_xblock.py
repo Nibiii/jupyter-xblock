@@ -60,7 +60,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         Maybe put this into its own Auth class singleton
         Decorator to make sure API calls are authorized
         """
-        def function_wrapper(self, token):
+        def function_wrapper(self, token=None):
             auth = func(self, token)
             auth.update({"Authorization":"Bearer %s" % token})
             return auth
@@ -143,10 +143,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             "token_type_hint":"access_token",
             "token":sifu_token,
         }
-        headers = {
-            'content-type': "application/json",
-            'cache-control': "no-cache",
-        }
+        headers = self.get_headers()
         try:
             response = requests.request("POST", url, data=json.dumps(payload), headers=headers)
             return True
@@ -166,10 +163,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         }
         url = "http://10.0.2.2:3334/token"
 
-        headers = {
-            'content-type': "application/json",
-            'cache-control': "no-cache",
-        }
+        headers = self.get_headers()
         try:
             response = requests.request("POST", url, data=json.dumps(payload), headers=headers)
             try:
@@ -220,7 +214,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             context = {
                 'self': self,
                 'user_is_staff': self.runtime.user_is_staff,
-                'current_url_resource': self.get_current_url_resource(username, course_unit_name, resource),
+                'current_url_resource': self.get_current_url_resource(username, course_unit_name, resource, sifu_token),
             }
         else:
             context = {
@@ -251,7 +245,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
 
     def get_xblock_notebook(self):
         """
-        Gets the uploaded notebook from studio
+        Gets the uploaded notebook from studio (requires that studios be running)
         """
         try:
             resp = requests.request("GET", "http://0.0.0.0:8001/%s" % self.file_noteBook)
@@ -307,18 +301,18 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             print("[edx_xblock_jupyter] ERROR : %s " % e)
             return False
 
-    def get_current_url_resource(self, username, course, filename):
+    def get_current_url_resource(self, username, course, filename, sifu_token):
         """
         Returns the url for the API call to fetch a notebook
         """
-        params = (urllib.quote(username), urllib.quote(course), urllib.quote(filename))
-        url = "http://0.0.0.0:3334/v1/api/notebooks/users/%s/courses/%s/files/%s" % params
+        params = (urllib.quote(username), urllib.quote(course), urllib.quote(filename), sifu_token)
+        url = "http://0.0.0.0:3334/v1/api/notebooks/users/%s/courses/%s/files/%s?Authorization=Bearer %s" % params
         return url
 
     @needs_authorization_header
-    def get_headers(self, sifu_token):
+    def get_headers(self, sifu_token=None):
         headers = {
-            'referer': "0.0.0.0:8081/hub/",
+            'referer': "0.0.0.0:8000",
             'content-type': "application/json"
             }
         return headers
