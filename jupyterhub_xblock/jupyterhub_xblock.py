@@ -147,8 +147,13 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             'content-type': "application/json",
             'cache-control': "no-cache",
         }
-        response = requests.request("POST", url, data=json.dumps(payload), headers=headers)
-        print response.text
+        try:
+            response = requests.request("POST", url, data=json.dumps(payload), headers=headers)
+            print(reponse.json())
+            return True
+        except:
+            print(e)
+            return False
 
     def get_auth_token(self, auth_grant, username):
         """
@@ -166,9 +171,13 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             'content-type': "application/json",
             'cache-control': "no-cache",
         }
-        response = requests.request("POST", url, data=json.dumps(payload), headers=headers)
-        print response.text["access_token"]
-        return response.text
+        try:
+            response = requests.request("POST", url, data=json.dumps(payload), headers=headers)
+            print(response.json()["access_token"])
+            return response.json()["access_token"]
+        except requests.exceptions.RequestException as e:
+            print(e)
+            return False
 
     def student_view(self, context=None, request=None):
         if not self.runtime.user_is_staff:
