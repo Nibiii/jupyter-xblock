@@ -60,9 +60,9 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         Maybe put this into its own Auth class singleton
         Decorator to make sure API calls are authorized
         """
-        def function_wrapper(self):
-            auth = func(self)
-            auth.update({"Authorization":"token 73295e78f9d24677a80bf72edfe071b2"})
+        def function_wrapper(self, token):
+            auth = func(self, token)
+            auth.update({"Authorization":"Bearer %s" % token})
             return auth
         return function_wrapper
 
@@ -149,9 +149,8 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         }
         try:
             response = requests.request("POST", url, data=json.dumps(payload), headers=headers)
-            print(reponse.json())
             return True
-        except:
+        except requests.exceptions.RequestException as e:
             print(e)
             return False
 
@@ -173,8 +172,12 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         }
         try:
             response = requests.request("POST", url, data=json.dumps(payload), headers=headers)
-            print(response.json()["access_token"])
-            return response.json()["access_token"]
+            try:
+                json_response = response.json()
+            except:
+                return "notallowed"
+            else:
+                return json_response["access_token"]
         except requests.exceptions.RequestException as e:
             print(e)
             return False
@@ -198,7 +201,9 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
 
             authorization_grant = self.get_authorization_grant(token, sessionid, host)
             # Get a token from Sifu
-            sifu_token = self.get_auth_token(authorization_grant, username)
+            sifu_token = None
+            if sifu_token is None:
+                sifu_token = self.get_auth_token(authorization_grant, username)
 
             #check of user notebook & base notebook exists
             if not self.user_notebook_exists(username, course_unit_name, resource, sifu_token):
@@ -211,7 +216,6 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
                 # create user notebook assuming the base file exists
                 if not self.create_user_notebook(username, course_unit_name, resource, sifu_token):
                     print("Throw an error here")
-
 
             context = {
                 'self': self,
@@ -235,7 +239,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         """
         Tests to see if user notebook exists
         """
-        headers = self.get_headers()
+        headers = self.get_headers(sifu_token)
         payload = {"notey_notey":{"username":username,"course":course_unit_name,"file":resource}}
         try:
             resp = requests.request("GET", "http://10.0.2.2:3334/v1/api/notebooks/users/courses/files", data=json.dumps(payload), headers=headers)
@@ -258,7 +262,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
 
     def base_file_exists(self, course_unit_name, resource, sifu_token):
         base_url = "http://10.0.2.2:3334/%s"
-        headers = self.get_headers()
+        headers = self.get_headers(sifu_token)
         api_endpoint = "v1/api/notebooks/courses/files/"
         response = None
         url = base_url % api_endpoint
@@ -274,7 +278,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
 
     def create_base_file(self, course_unit_name, resource, sifu_token):
         base_url = "http://10.0.2.2:3334/%s"
-        headers = self.get_headers()
+        headers = self.get_headers(sifu_token)
         api_endpoint = "v1/api/notebooks/courses/files/"
         response = None
         url = base_url % api_endpoint
@@ -290,7 +294,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
 
     def create_user_notebook(self, username, course_unit_name, resource, sifu_token):
         base_url = "http://10.0.2.2:3334/%s"
-        headers = self.get_headers()
+        headers = self.get_headers(sifu_token)
         api_endpoint = "v1/api/notebooks/users/courses/files/"
         response = None
         url = base_url % api_endpoint
@@ -312,7 +316,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         return url
 
     @needs_authorization_header
-    def get_headers(self):
+    def get_headers(self, sifu_token):
         headers = {
             'referer': "0.0.0.0:8081/hub/",
             'content-type': "application/json"
