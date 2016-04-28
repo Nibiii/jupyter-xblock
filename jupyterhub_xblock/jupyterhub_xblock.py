@@ -98,7 +98,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
 
     def parse_auth_code(self, redirect_url):
         qs = urlparse(redirect_url).query
-        return parse_qs(qs)['code']
+        return parse_qs(qs)['code'].pop(0)
 
     def get_authorization_grant(self, token, sessionid, host):
         """
@@ -134,24 +134,41 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             print(e)
             return None
 
-    def get_auth_token(self, auth_grant):
+    def destroy_sifu_token(self, sifu_token):
+        """
+        Removes the login associated with this token
+        """
+        url = "http://10.0.2.2:3334/revoke"
+        payload = {
+            "token_type_hint":"access_token",
+            "token":sifu_token,
+        }
+        headers = {
+            'content-type': "application/json",
+            'cache-control': "no-cache",
+        }
+        response = requests.request("POST", url, data=json.dumps(payload), headers=headers)
+        print response.text
+
+    def get_auth_token(self, auth_grant, username):
         """
         Gets the authentication token associated with this user through Sifu's
         calls to the edx oauth2 api.
         """
         payload = {
+            "username":username,
             "auth_code":auth_grant,
             "grant_type":"edx_auth_code"
         }
-        url = "http://localhost:3334/token"
+        url = "http://10.0.2.2:3334/token"
 
         headers = {
             'content-type': "application/json",
             'cache-control': "no-cache",
         }
-        response = requests.request("POST", url, data=payload, headers=headers)
-        print(response.text)
-        return "token"
+        response = requests.request("POST", url, data=json.dumps(payload), headers=headers)
+        print response.text["access_token"]
+        return response.text
 
     def student_view(self, context=None, request=None):
         if not self.runtime.user_is_staff:
@@ -172,18 +189,18 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
 
             authorization_grant = self.get_authorization_grant(token, sessionid, host)
             # Get a token from Sifu
-            sifu_token = self.get_auth_token(authorization_grant)
+            sifu_token = self.get_auth_token(authorization_grant, username)
 
             #check of user notebook & base notebook exists
-            if not self.user_notebook_exists(username, course_unit_name, resource):
+            if not self.user_notebook_exists(username, course_unit_name, resource, sifu_token):
                 print("User notebook does not exist")
                 # check the base file exists
-                if not self.base_file_exists(course_unit_name, resource):
+                if not self.base_file_exists(course_unit_name, resource, sifu_token):
                     print("Base file definitely does not exist")
                     # create the base file
-                    self.create_base_file(course_unit_name, resource)
+                    self.create_base_file(course_unit_name, resource, sifu_token)
                 # create user notebook assuming the base file exists
-                if not self.create_user_notebook(username, course_unit_name, resource):
+                if not self.create_user_notebook(username, course_unit_name, resource, sifu_token):
                     print("Throw an error here")
 
 
@@ -205,7 +222,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         frag.initialize_js('JupyterhubXBlock')
         return frag
 
-    def user_notebook_exists(self, username, course_unit_name, resource):
+    def user_notebook_exists(self, username, course_unit_name, resource, sifu_token):
         """
         Tests to see if user notebook exists
         """
@@ -230,7 +247,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             print(e)
             return False
 
-    def base_file_exists(self, course_unit_name, resource):
+    def base_file_exists(self, course_unit_name, resource, sifu_token):
         base_url = "http://10.0.2.2:3334/%s"
         headers = self.get_headers()
         api_endpoint = "v1/api/notebooks/courses/files/"
@@ -246,7 +263,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             print("[edx_xblock_jupyter] ERROR : %s " % e)
             return False
 
-    def create_base_file(self, course_unit_name, resource):
+    def create_base_file(self, course_unit_name, resource, sifu_token):
         base_url = "http://10.0.2.2:3334/%s"
         headers = self.get_headers()
         api_endpoint = "v1/api/notebooks/courses/files/"
@@ -262,7 +279,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             print("[edx_xblock_jupyter] ERROR : %s " % e)
             return False
 
-    def create_user_notebook(self, username, course_unit_name, resource):
+    def create_user_notebook(self, username, course_unit_name, resource, sifu_token):
         base_url = "http://10.0.2.2:3334/%s"
         headers = self.get_headers()
         api_endpoint = "v1/api/notebooks/users/courses/files/"
