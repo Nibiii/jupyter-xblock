@@ -20,6 +20,22 @@ c.JupyterHub.tornado_settings = {
 """ This is for the JupyterNotebook CSP settings """
 c.Spawner.args = ['--NotebookApp.tornado_settings={ \'headers\': { \'Content-Security-Policy\': "\'www.example.com:80\'"}}']
 ```
+
+## NB Important!
+
+I order for the xblock to work, it requires access to Django Middleware:
+
+```py
++INSTALLED_APPS += ('crequest', 'debug_toolbar', 'debug_toolbar_mongo')
+ MIDDLEWARE_CLASSES += (
+     'django_comment_client.utils.QueryCountDebugMiddleware',
+     'debug_toolbar.middleware.DebugToolbarMiddleware',
++    'crequest.middleware.CrequestMiddleware',
+ )
+```
+
+This must be set in the environment settings.py e.g. lms/envs/devstack.py
+
 #### Admin Acess
 Admin(s) must be defined and admin user credentials must be supplied to the Xblock so that it can perform administrator REST API calls to JupyterHub.
 Created users MUST have a home directory as well.

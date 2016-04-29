@@ -127,6 +127,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             #"GET /?state=3835662&code=48dbd69c8028c61d35df319d04f9d827cfe4c51c HTTP/1.1" 302 0 "
             resp = requests.request("GET", resp.headers['location'],headers=headers, allow_redirects=False)
             return authorization_grant
+
             # to delete post http://0.0.0.0:8000/admin/oauth2/grant/
             # csrfmiddlewaretoken=dZXgCmUiBMTwfjwFZ702h8pg5O0ZkktA&_selected_action=32&action=delete_selected&post=yes
             # as form data
@@ -193,11 +194,18 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             sessionid = cr.session.session_key
             host = cr.META['HTTP_HOST']
 
+
             authorization_grant = self.get_authorization_grant(token, sessionid, host)
             # Get a token from Sifu
             sifu_token = None
+            try:
+                sifu_token = cr.session['sifu_token']
+            except:
+                cr.session['sifu_token'] = None
+
             if sifu_token is None:
                 sifu_token = self.get_auth_token(authorization_grant, username)
+                cr.session['sifu_token'] = sifu_token
 
             #check of user notebook & base notebook exists
             if not self.user_notebook_exists(username, course_unit_name, resource, sifu_token):
