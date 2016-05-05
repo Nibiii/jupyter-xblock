@@ -23,8 +23,8 @@ from django.http import HttpResponse
 from django.middleware import csrf
 
 import urllib
-
 import requests
+from ConfigParser import SafeConfigParser
 
 @XBlock.needs('request')
 @XBlock.needs('user')
@@ -135,11 +135,11 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             print(e)
             return None
 
-    def destroy_sifu_token(self, sifu_token):
+    def destroy_sifu_token(self, sifu_token, sifu_domain):
         """
         Removes the login associated with this token
         """
-        url = "http://10.0.2.2:3334/revoke"
+        url = "http://%s:3334/revoke" % sifu_domain
         payload = {
             "token_type_hint":"access_token",
             "token":sifu_token,
@@ -152,7 +152,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             print(e)
             return False
 
-    def get_auth_token(self, auth_grant, username):
+    def get_auth_token(self, auth_grant, username, sifu_domain):
         """
         Gets the authentication token associated with this user through Sifu's
         calls to the edx oauth2 api.
@@ -162,20 +162,30 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             "auth_code":auth_grant,
             "grant_type":"edx_auth_code"
         }
-        url = "http://10.0.2.2:3334/token"
+        url = 'http://%s:3334/token' % sifu_domain
 
         headers = self.get_headers()
         try:
-            response = requests.request("POST", url, data=json.dumps(payload), headers=headers)
+            resp = requests.request("POST", url, data=json.dumps(payload), headers=headers)
+            try:
+                resp.raise_for_status()
+            except requests.exceptions.HTTPError as e:
+                print("HTTPError:", e.message)
+                return None
             try:
                 json_response = response.json()
             except:
-                return "notallowed"
+                return None
             else:
                 return json_response["access_token"]
         except requests.exceptions.RequestException as e:
             print(e)
-            return False
+            return None
+
+    def get_sifu_domain(self):
+        config = SafeConfigParser()
+        config.read('config.ini')
+        return config.get('main', 'sifu_domain')
 
     def student_view(self, context=None, request=None):
         if not self.runtime.user_is_staff:
@@ -194,35 +204,38 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             sessionid = cr.session.session_key
             host = cr.META['HTTP_HOST']
 
-
             authorization_grant = self.get_authorization_grant(token, sessionid, host)
+
             # Get a token from Sifu
+            sifu_domain = self.get_sifu_domain
             sifu_token = None
             try:
                 sifu_token = cr.session['sifu_token']
             except:
                 cr.session['sifu_token'] = None
 
+            print("------------------------")
+            print(sifu_token)
             if sifu_token is None:
-                sifu_token = self.get_auth_token(authorization_grant, username)
+                sifu_token = self.get_auth_token(authorization_grant, username, sifu_domain)
                 cr.session['sifu_token'] = sifu_token
 
             #check of user notebook & base notebook exists
-            if not self.user_notebook_exists(username, course_unit_name, resource, sifu_token):
+            if not self.user_notebook_exists(username, course_unit_name, resource, sifu_token, sifu_domain):
                 print("User notebook does not exist")
                 # check the base file exists
-                if not self.base_file_exists(course_unit_name, resource, sifu_token):
+                if not self.base_file_exists(course_unit_name, resource, sifu_token, sifu_domain):
                     print("Base file definitely does not exist")
                     # create the base file
-                    self.create_base_file(course_unit_name, resource, sifu_token)
+                    self.create_base_file(course_unit_name, resource, sifu_token, sifu_domain, host)
                 # create user notebook assuming the base file exists
-                if not self.create_user_notebook(username, course_unit_name, resource, sifu_token):
-                    print("Throw an error here")
+                if not self.create_user_notebook(username, course_unit_name, resource, sifu_token, sifu_domain):
+                    print("Could not create user notebook")
 
             context = {
                 'self': self,
                 'user_is_staff': self.runtime.user_is_staff,
-                'current_url_resource': self.get_current_url_resource(username, course_unit_name, resource, sifu_token),
+                'current_url_resource': self.get_current_url_resource(username, course_unit_name, resource, sifu_token, sifu_domain),
             }
         else:
             context = {
@@ -237,54 +250,65 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         frag.initialize_js('JupyterhubXBlock')
         return frag
 
-    def user_notebook_exists(self, username, course_unit_name, resource, sifu_token):
+    def user_notebook_exists(self, username, course_unit_name, resource, sifu_token, sifu_domain):
         """
         Tests to see if user notebook exists
         """
         headers = self.get_headers(sifu_token)
+        url = 'http://%s:3334/v1/api/notebooks/users/courses/files' % sifu_domain
         payload = {"notey_notey":{"username":username,"course":course_unit_name,"file":resource}}
         try:
-            resp = requests.request("GET", "http://10.0.2.2:3334/v1/api/notebooks/users/courses/files", data=json.dumps(payload), headers=headers)
+            resp = requests.request("GET", url, data=json.dumps(payload), headers=headers)
+            try:
+                resp.raise_for_status()
+            except requests.exceptions.HTTPError as e:
+                print("HTTPError:", e.message)
+                return False
             resp = resp.json()
             return resp["result"]
         except requests.exceptions.RequestException as e:
             print(e)
             return False
 
-    def get_xblock_notebook(self):
+    def get_xblock_notebook(self, host):
         """
         Gets the uploaded notebook from studio (requires that studios be running)
         """
         try:
-            resp = requests.request("GET", "http://0.0.0.0:8001/%s" % self.file_noteBook)
+            resp = requests.request("GET", "http://%s:8001/%s" % (host, self.file_noteBook))
             return resp.content
         except requests.exceptions.RequestException as e:
             print(e)
             return False
 
-    def base_file_exists(self, course_unit_name, resource, sifu_token):
-        base_url = "http://10.0.2.2:3334/%s"
+    def base_file_exists(self, course_unit_name, resource, sifu_token, sifu_domain):
+        base_url = "http://%s:3334/%s"
         headers = self.get_headers(sifu_token)
         api_endpoint = "v1/api/notebooks/courses/files/"
         response = None
-        url = base_url % api_endpoint
+        url = base_url % (sifu_domain, api_endpoint)
         payload = {"notey_notey":{"course":course_unit_name,"file":resource}}
         try:
             # TODO check for auth-403 alreadystarted-400 doesntexist-404
             resp = requests.request("GET", url, data=json.dumps(payload), headers=headers)
+            try:
+                resp.raise_for_status()
+            except requests.exceptions.HTTPError as e:
+                print("HTTPError:", e.message)
+                return False
             resp = resp.json()
             return resp["result"]
         except requests.exceptions.RequestException as e:
             print("[edx_xblock_jupyter] ERROR : %s " % e)
             return False
 
-    def create_base_file(self, course_unit_name, resource, sifu_token):
-        base_url = "http://10.0.2.2:3334/%s"
+    def create_base_file(self, course_unit_name, resource, sifu_token, sifu_domain, host):
+        base_url = "http://%s:3334/%s"
         headers = self.get_headers(sifu_token)
         api_endpoint = "v1/api/notebooks/courses/files/"
         response = None
-        url = base_url % api_endpoint
-        loaded_file = self.get_xblock_notebook()
+        url = base_url % (sifu_domain, api_endpoint)
+        loaded_file = self.get_xblock_notebook(host)
         payload = {"notey_notey":{"course":course_unit_name,"file":resource,"data":loaded_file}}
         try:
             # TODO check for auth-403 alreadystarted-400 doesntexist-404
@@ -294,27 +318,32 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             print("[edx_xblock_jupyter] ERROR : %s " % e)
             return False
 
-    def create_user_notebook(self, username, course_unit_name, resource, sifu_token):
-        base_url = "http://10.0.2.2:3334/%s"
+    def create_user_notebook(self, username, course_unit_name, resource, sifu_token, sifu_domain):
+        base_url = "http://%s:3334/%s"
         headers = self.get_headers(sifu_token)
         api_endpoint = "v1/api/notebooks/users/courses/files/"
         response = None
-        url = base_url % api_endpoint
+        url = base_url % (sifu_domain, api_endpoint)
         payload = {"notey_notey":{"username":username,"course":course_unit_name,"file":resource}}
         try:
             # TODO check for auth-403 alreadystarted-400 doesntexist-404
-            response = requests.request("POST", url, data=json.dumps(payload), headers=headers)
+            resp = requests.request("POST", url, data=json.dumps(payload), headers=headers)
+            try:
+                resp.raise_for_status()
+            except requests.exceptions.HTTPError as e:
+                print("HTTPError:", e.message)
+                return False
             return True
         except requests.exceptions.RequestException as e:
             print("[edx_xblock_jupyter] ERROR : %s " % e)
             return False
 
-    def get_current_url_resource(self, username, course, filename, sifu_token):
+    def get_current_url_resource(self, username, course, filename, sifu_token, sifu_domain):
         """
         Returns the url for the API call to fetch a notebook
         """
-        params = (urllib.quote(username), urllib.quote(course), urllib.quote(filename), sifu_token)
-        url = "http://0.0.0.0:3334/v1/api/notebooks/users/%s/courses/%s/files/%s?Authorization=Bearer %s" % params
+        params = (sifu_domain, urllib.quote(username), urllib.quote(course), urllib.quote(filename), sifu_token)
+        url = "http://%s:3334/v1/api/notebooks/users/%s/courses/%s/files/%s?Authorization=Bearer %s" % params
         return url
 
     @needs_authorization_header
