@@ -24,7 +24,10 @@ from django.middleware import csrf
 
 import urllib
 import requests
-from ConfigParser import SafeConfigParser
+import yaml
+
+import os
+
 
 @XBlock.needs('request')
 @XBlock.needs('user')
@@ -183,9 +186,9 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             return None
 
     def get_sifu_domain(self):
-        config = SafeConfigParser()
-        config.read('config.ini')
-        return config.get('main', 'sifu_domain')
+        os.chdir(os.path.dirname(__file__))
+        config = yaml.safe_load(open("%s/config.yml" % os.getcwd(), 'r'))
+        return config['sifu_domain']
 
     def student_view(self, context=None, request=None):
         if not self.runtime.user_is_staff:
@@ -207,15 +210,13 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             authorization_grant = self.get_authorization_grant(token, sessionid, host)
 
             # Get a token from Sifu
-            sifu_domain = self.get_sifu_domain
+            sifu_domain = self.get_sifu_domain()
             sifu_token = None
             try:
                 sifu_token = cr.session['sifu_token']
             except:
                 cr.session['sifu_token'] = None
 
-            print("------------------------")
-            print(sifu_token)
             if sifu_token is None:
                 sifu_token = self.get_auth_token(authorization_grant, username, sifu_domain)
                 cr.session['sifu_token'] = sifu_token
@@ -274,6 +275,8 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         """
         Gets the uploaded notebook from studio (requires that studios be running)
         """
+        # for now
+        host = '0.0.0.0'
         try:
             resp = requests.request("GET", "http://%s:8001/%s" % (host, self.file_noteBook))
             return resp.content
