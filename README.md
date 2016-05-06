@@ -6,9 +6,9 @@ The Xblock requires the following:
 1. A docker deployment of Sifu & JupyterNotebook: https://github.com/proversity-org/edx-api-jupyter
 2. Configuration settings in config.yml
 3. Access to Django Middleware
-3. Creation of Oauth client in the admin backend.
-4. Updating Sifu Oauth client details.
-4. Studio must be running.
+4. Creation of Oauth client in the admin backend.
+5. Updating Sifu Oauth client details.
+6. Studio must be running.
 
 ## 1 Docker Deployment
 Once the Docker deployment is done, you will need to take note of the
@@ -85,11 +85,12 @@ Studio needs to be running in order for Instructors to create the xblock, and up
 
 ## Use cases
 The xblock makes API calls to:
+
 1. Use Edx as an oauth provider, and request an access token from sifu. If this is not a logged in edx user, there will be no joy.
 2. Check the existence of the course unit's base notebook file.
-2. Upload it if it doesn't exist.
-2. Check if the user's course unit notebook exists
-3. Create one from the base file if it doesn't exist
-4. Request the user's notebook in an Iframe
+3. Upload it if it doesn't exist.
+4. Check if the user's course unit notebook exists
+5. Create one from the base file if it doesn't exist
+6. Request the user's notebook in an Iframe
 
 All API requests to Sifu include the access token provider at the authorization stage.
