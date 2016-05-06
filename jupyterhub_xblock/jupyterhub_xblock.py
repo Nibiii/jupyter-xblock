@@ -169,14 +169,14 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
 
         headers = self.get_headers()
         try:
-            resp = requests.request("POST", url, data=json.dumps(payload), headers=headers)
+            resp = requests.post(url, data=json.dumps(payload), headers=headers)
             try:
                 resp.raise_for_status()
             except requests.exceptions.HTTPError as e:
                 print("HTTPError:", e.message)
                 return None
             try:
-                json_response = response.json()
+                json_response = resp.json()
             except:
                 return None
             else:
@@ -212,6 +212,8 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             # Get a token from Sifu
             sifu_domain = self.get_sifu_domain()
             sifu_token = None
+            # it looks like these might be single use tokens
+            cr.session['sifu_token'] = None
             try:
                 sifu_token = cr.session['sifu_token']
             except:
@@ -236,7 +238,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             context = {
                 'self': self,
                 'user_is_staff': self.runtime.user_is_staff,
-                'current_url_resource': self.get_current_url_resource(username, course_unit_name, resource, sifu_token, sifu_domain),
+                'current_url_resource': self.get_current_url_resource(username, course_unit_name, resource, sifu_token, sifu_domain, host),
             }
         else:
             context = {
@@ -273,12 +275,15 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
 
     def get_xblock_notebook(self, host):
         """
-        Gets the uploaded notebook from studio (requires that studios be running)
+        Gets the uploaded notebook from studio
+        NB!!! (requires that studio be running) NB!! <----- LOOK HERE
         """
         # for now
         host = '0.0.0.0'
+        url = "http://%s:8001/%s" % (host, self.file_noteBook)
+        print(url)
         try:
-            resp = requests.request("GET", "http://%s:8001/%s" % (host, self.file_noteBook))
+            resp = requests.request("GET", url)
             return resp.content
         except requests.exceptions.RequestException as e:
             print(e)
@@ -341,10 +346,12 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             print("[edx_xblock_jupyter] ERROR : %s " % e)
             return False
 
-    def get_current_url_resource(self, username, course, filename, sifu_token, sifu_domain):
+    def get_current_url_resource(self, username, course, filename, sifu_token, sifu_domain, host):
         """
         Returns the url for the API call to fetch a notebook
         """
+        if host == '0.0.0.0:8000':
+           sifu_domain = '0.0.0.0'
         params = (sifu_domain, urllib.quote(username), urllib.quote(course), urllib.quote(filename), sifu_token)
         url = "http://%s:3334/v1/api/notebooks/users/%s/courses/%s/files/%s?Authorization=Bearer %s" % params
         return url
