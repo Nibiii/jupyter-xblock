@@ -31,6 +31,7 @@ In order for the xblock to work, it requires access to Django Middleware, secifi
  )
 ```
 This must be set in the environment settings.py e.g. lms/envs/devstack.py. Edx currently doesn't support Middleware access in an Xblock but they have taken note of this potential need.
+Make sure ```crequest``` is installed: ```sudo -H -u edxapp /edx/bin/pip.edxapp install django-crequest```
 
 ## 4 Oauth Client
 Create a new oauth client in the admin backend:
@@ -82,6 +83,28 @@ c.Spawner.args = ['--NotebookApp.tornado_settings={ \'headers\': { \'Content-Sec
 ```
 ## 6 Ensure studio is running
 Studio needs to be running in order for Instructors to create the xblock, and upload notebooks. In the lms, the xblock will pull the base notebook and create it remotely in the docker container's volume if it doesn't exist, using sifu api calls. If Studio is not running, and the base notebook does not exist in the docker container's volume, then students will see an empty notebook.
+
+## 7 Installing the Xblock
+
+sudo -H -u edxapp /edx/bin/pip.edxapp install --upgrade /vagrant/software/edx_xblock_jupyter/
+
+## 8 Adding the Xblock in Studio
+
+1. Click on the course you wish to add the Xblock to.
+2. At the top of the page click on the settings drop down and select Advanced settings.
+3. Under 'Manual Policy Definition' find 'Advanced Module List'
+4. Add the name of the xblock to the array/list. This is the pakage name of the xblock found in setup.py in the root of the xblock's directory:
+
+setup.py:
+```py
+    .
+    .
+    .
+    packages=[
+        'jupyterhub_xblock',
+    ]
+```
+5. Save changes.
 
 ## Use cases
 The xblock makes API calls to:
