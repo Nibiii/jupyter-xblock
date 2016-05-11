@@ -94,7 +94,6 @@ sudo -H -u edxapp /edx/bin/pip.edxapp install --upgrade /vagrant/software/edx_xb
 2. At the top of the page click on the settings drop down and select Advanced settings.
 3. Under 'Manual Policy Definition' find 'Advanced Module List'
 4. Add the name of the xblock to the array/list. This is the pakage name of the xblock found in setup.py in the root of the xblock's directory:
-
 setup.py:
 ```py
     .
