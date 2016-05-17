@@ -114,7 +114,6 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
              "Referer":"http://%s" % host,
              "Cookie": "djdt=hide; edxloggedin=true; csrftoken=%s; sessionid=%s" % (token, sessionid)
         }
-
         sifu_id = "cab1f254be91128c28a0" # pull this from an enironment variable
         state = "3835662" # randomly generate this
         base_url = "http://%s" % host
@@ -122,13 +121,35 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         try:
             #"GET /oauth2/authorize/"
             resp = requests.request("GET", url, headers=headers, allow_redirects=False)
+            try: 
+                resp.raise_for_status()
+            except requests.exceptions.HTTPError as e:
+                print(e)
+                return None            
             # "GET /oauth2/authorize/confirm"
             resp = requests.request("GET", resp.headers['location'],headers=headers, allow_redirects=False)
+            try:
+                resp.raise_for_status()
+            except requests.exceptions.HTTPError as e:
+                print(e)
+                return None
             # "GET /oauth2/redirect ""
             resp = requests.request("GET", resp.headers['location'],headers=headers, allow_redirects=False)
+            try:
+                resp.raise_for_status()
+            except requests.exceptions.HTTPError as e:
+                print(e)
+                return None
+            print(resp.headers)
             authorization_grant = self.parse_auth_code(resp.headers['location'])
             #"GET /?state=3835662&code=48dbd69c8028c61d35df319d04f9d827cfe4c51c HTTP/1.1" 302 0 "
             resp = requests.request("GET", resp.headers['location'],headers=headers, allow_redirects=False)
+            try:
+                resp.raise_for_status()
+            except requests.exceptions.HTTPError as e:
+                print(e)
+                return False
+
             return authorization_grant
 
             # to delete post http://0.0.0.0:8000/admin/oauth2/grant/

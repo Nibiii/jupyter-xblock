@@ -19,6 +19,11 @@ In jupyterhub_xblock/config.yml specify the details from 1:
 ```yml
 'sifu_domain': 'sifu_exmaple.com'
 ```
+In envs,
+ 
+```py
+FEATURES['ENABLE_OAUTH2_PROVIDER'] = True
+```
 
 ## 3 Access to Django Middleware
 In order for the xblock to work, it requires access to Django Middleware, secifically crequest:
