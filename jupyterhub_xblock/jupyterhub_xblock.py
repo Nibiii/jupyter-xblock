@@ -28,6 +28,13 @@ import yaml
 
 import os
 
+from django.contrib.sessions.models import Session
+#from django.contrib.auth.models import User
+
+from django.conf import settings
+
+# For fun
+#import SafeCookieData
 
 @XBlock.needs('request')
 @XBlock.needs('user')
@@ -108,24 +115,29 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         Get the authorization code for this user, for use in allowing edx to be
         an oauth2 provider to sifu.
         """
+        cr = CrequestMiddleware.get_request()
         headers = {
              "Host":host, # Get base url from env variable
              "X-CSRFToken":token,
+             "Connection": 'keep-alive',
              "Referer":"http://%s" % host,
-             "Cookie": "djdt=hide; edxloggedin=true; csrftoken=%s; sessionid=%s" % (token, sessionid)
+             "Cookie": cr.META['HTTP_COOKIE']
         }
         sifu_id = "cab1f254be91128c28a0" # pull this from an enironment variable
         state = "3835662" # randomly generate this
         base_url = "http://%s" % host
         url = "%s/oauth2/authorize/?client_id=%s&state=%s&redirect_uri=%s&response_type=code" % (base_url,sifu_id,state,base_url)
         try:
+            # Also check that the locations are correct, and if they are not,
+            # close gracefull and log the error
+            # If the first location is to confirm, then trusted client is not set up correctly.
             #"GET /oauth2/authorize/"
             resp = requests.request("GET", url, headers=headers, allow_redirects=False)
-            try: 
+            try:
                 resp.raise_for_status()
             except requests.exceptions.HTTPError as e:
                 print(e)
-                return None            
+                return None
             # "GET /oauth2/authorize/confirm"
             resp = requests.request("GET", resp.headers['location'],headers=headers, allow_redirects=False)
             try:
@@ -226,6 +238,8 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             cr = CrequestMiddleware.get_request()
             token = csrf.get_token(cr)
             sessionid = cr.session.session_key
+
+            cookie_data_string = cr.COOKIES.get(settings.SESSION_COOKIE_NAME)
             host = cr.META['HTTP_HOST']
 
             authorization_grant = self.get_authorization_grant(token, sessionid, host)
