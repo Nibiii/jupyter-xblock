@@ -29,12 +29,11 @@ import yaml
 import os
 
 from django.contrib.sessions.models import Session
-#from django.contrib.auth.models import User
-
+from oauth2 import Client
 from django.conf import settings
+import logging
 
-# For fun
-#import SafeCookieData
+log = logging.getLogger(__name__)
 
 @XBlock.needs('request')
 @XBlock.needs('user')
@@ -108,7 +107,15 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
 
     def parse_auth_code(self, redirect_url):
         qs = urlparse(redirect_url).query
-        return parse_qs(qs)['code'].pop(0)
+        qs = parse_qs(qs)
+        return qs['code'].pop(0) if qs is not None else None
+
+    def get_sifu_id(self):
+        client = Client.objects.filter(name='sifu').values().first()
+        if client is None:
+            log.debug(u'[JupyterNotebook Xblock] : Oauth2 client is not set up in the Admin backend.'
+            return client
+        return client['client_id']
 
     def get_authorization_grant(self, token, sessionid, host):
         """
@@ -123,52 +130,36 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
              "Referer":"http://%s" % host,
              "Cookie": cr.META['HTTP_COOKIE']
         }
-        sifu_id = "cab1f254be91128c28a0" # pull this from an enironment variable
+        sifu_id = self.get_sifu_id()
+        if sifu_id is None:
+            return None
+
+        # will need to update sifu with the secret details somehow
         state = "3835662" # randomly generate this
         base_url = "http://%s" % host
-        url = "%s/oauth2/authorize/?client_id=%s&state=%s&redirect_uri=%s&response_type=code" % (base_url,sifu_id,state,base_url)
+        location = "%s/oauth2/authorize/?client_id=%s&state=%s&redirect_uri=%s&response_type=code" % (base_url,sifu_id,state,base_url)
+        authorization_grant = None
         try:
-            # Also check that the locations are correct, and if they are not,
-            # close gracefull and log the error
-            # If the first location is to confirm, then trusted client is not set up correctly.
-            #"GET /oauth2/authorize/"
-            resp = requests.request("GET", url, headers=headers, allow_redirects=False)
-            try:
+            while location is not None:
+                resp = requests.request("GET", location, headers=headers, allow_redirects=False)
                 resp.raise_for_status()
-            except requests.exceptions.HTTPError as e:
-                print(e)
-                return None
+                try:
+                    location = resp.headers['location']
+                    authorization_grant = self.parse_auth_code(resp.headers['location']) if authorization_grant is None
+                except KeyError, e:
+                    # client might not be trusted
+                    # session id might be incorrect
+                    location = None
             # "GET /oauth2/authorize/confirm"
-            resp = requests.request("GET", resp.headers['location'],headers=headers, allow_redirects=False)
-            try:
-                resp.raise_for_status()
-            except requests.exceptions.HTTPError as e:
-                print(e)
-                return None
             # "GET /oauth2/redirect ""
-            resp = requests.request("GET", resp.headers['location'],headers=headers, allow_redirects=False)
-            try:
-                resp.raise_for_status()
-            except requests.exceptions.HTTPError as e:
-                print(e)
-                return None
-            print(resp.headers)
-            authorization_grant = self.parse_auth_code(resp.headers['location'])
             #"GET /?state=3835662&code=48dbd69c8028c61d35df319d04f9d827cfe4c51c HTTP/1.1" 302 0 "
-            resp = requests.request("GET", resp.headers['location'],headers=headers, allow_redirects=False)
-            try:
-                resp.raise_for_status()
-            except requests.exceptions.HTTPError as e:
-                print(e)
-                return False
-
             return authorization_grant
 
             # to delete post http://0.0.0.0:8000/admin/oauth2/grant/
             # csrfmiddlewaretoken=dZXgCmUiBMTwfjwFZ702h8pg5O0ZkktA&_selected_action=32&action=delete_selected&post=yes
             # as form data
-        except requests.exceptions.RequestException as e:
-            print(e)
+        except (requests.exceptions.RequestException, requests.exceptions.HTTPError) as e:
+            log.debug(u'[JupyterNotebook Xblock] : RequestException occured in get_authorization_grant {}'.format(e))
             return None
 
     def destroy_sifu_token(self, sifu_token, sifu_domain):
@@ -215,7 +206,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             else:
                 return json_response["access_token"]
         except requests.exceptions.RequestException as e:
-            print(e)
+            log.debug(u'[JupyterNotebook Xblock] : RequestException occured in get_auth_token: {}'.format(e))
             return None
 
     def get_sifu_domain(self):
@@ -229,7 +220,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             xb_user = user_service.get_current_user()
             username = xb_user.opt_attrs.get('edx-platform.username')
             if username is None:
-                print("HTTP ERROR 404 User not found")
+                log.debug(u'[JupyterNotebook Xblock] : User not found in student_view')
 
             # get the course details
             course_unit_name = str(self.course_unit)
