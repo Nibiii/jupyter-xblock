@@ -1,11 +1,8 @@
-import json
-from django.utils.translation import ugettext
+import json, urllib, requests, yaml, os
 import pkg_resources
 
 from django.template import Template, Context, RequestContext
 
-#from django.core.context_processors import request
-#from xblock.django.request import DjangoWebobRequest
 from crequest.middleware import CrequestMiddleware
 from urlparse import urlparse, parse_qs
 
@@ -18,21 +15,19 @@ from xblockutils.studio_editable import StudioEditableXBlockMixin, FutureFields
 from xmodule.x_module import XModuleMixin
 
 from django.utils.encoding import iri_to_uri
+from django.utils.translation import ugettext
 from django.http import HttpResponse
-
 from django.middleware import csrf
-
-import urllib
-import requests
-import yaml
-
-import os
-
 from django.contrib.sessions.models import Session
-from oauth2 import Client
 from django.conf import settings
+
+from provider.oauth2.models import Client
+
 import logging
 
+from utils import parse_auth_code, get_sifu_id, get_authorization_grant
+
+# Globals
 log = logging.getLogger(__name__)
 
 @XBlock.needs('request')
@@ -105,63 +100,6 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         fragment.initialize_js('JupyterhubStudioEditableXBlock')
         return fragment
 
-    def parse_auth_code(self, redirect_url):
-        qs = urlparse(redirect_url).query
-        qs = parse_qs(qs)
-        return qs['code'].pop(0) if qs is not None else None
-
-    def get_sifu_id(self):
-        client = Client.objects.filter(name='sifu').values().first()
-        if client is None:
-            log.debug(u'[JupyterNotebook Xblock] : Oauth2 client is not set up in the Admin backend.'
-            return client
-        return client['client_id']
-
-    def get_authorization_grant(self, token, sessionid, host):
-        """
-        Get the authorization code for this user, for use in allowing edx to be
-        an oauth2 provider to sifu.
-        """
-        cr = CrequestMiddleware.get_request()
-        headers = {
-             "Host":host, # Get base url from env variable
-             "X-CSRFToken":token,
-             "Connection": 'keep-alive',
-             "Referer":"http://%s" % host,
-             "Cookie": cr.META['HTTP_COOKIE']
-        }
-        sifu_id = self.get_sifu_id()
-        if sifu_id is None:
-            return None
-
-        # will need to update sifu with the secret details somehow
-        state = "3835662" # randomly generate this
-        base_url = "http://%s" % host
-        location = "%s/oauth2/authorize/?client_id=%s&state=%s&redirect_uri=%s&response_type=code" % (base_url,sifu_id,state,base_url)
-        authorization_grant = None
-        try:
-            while location is not None:
-                resp = requests.request("GET", location, headers=headers, allow_redirects=False)
-                resp.raise_for_status()
-                try:
-                    location = resp.headers['location']
-                    authorization_grant = self.parse_auth_code(resp.headers['location']) if authorization_grant is None
-                except KeyError, e:
-                    # client might not be trusted
-                    # session id might be incorrect
-                    location = None
-            # "GET /oauth2/authorize/confirm"
-            # "GET /oauth2/redirect ""
-            #"GET /?state=3835662&code=48dbd69c8028c61d35df319d04f9d827cfe4c51c HTTP/1.1" 302 0 "
-            return authorization_grant
-
-            # to delete post http://0.0.0.0:8000/admin/oauth2/grant/
-            # csrfmiddlewaretoken=dZXgCmUiBMTwfjwFZ702h8pg5O0ZkktA&_selected_action=32&action=delete_selected&post=yes
-            # as form data
-        except (requests.exceptions.RequestException, requests.exceptions.HTTPError) as e:
-            log.debug(u'[JupyterNotebook Xblock] : RequestException occured in get_authorization_grant {}'.format(e))
-            return None
-
     def destroy_sifu_token(self, sifu_token, sifu_domain):
         """
         Removes the login associated with this token
@@ -176,7 +114,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             response = requests.request("POST", url, data=json.dumps(payload), headers=headers)
             return True
         except requests.exceptions.RequestException as e:
-            print(e)
+            log.debug(u'[JupyterNotebook Xblock] : RequestException occured in destroy_sifu_token: {}'.format(e))
             return False
 
     def get_auth_token(self, auth_grant, username, sifu_domain):
@@ -233,7 +171,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             cookie_data_string = cr.COOKIES.get(settings.SESSION_COOKIE_NAME)
             host = cr.META['HTTP_HOST']
 
-            authorization_grant = self.get_authorization_grant(token, sessionid, host)
+            authorization_grant = get_authorization_grant(token, sessionid, host)
 
             # Get a token from Sifu
             sifu_domain = self.get_sifu_domain()
@@ -249,17 +187,17 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
                 sifu_token = self.get_auth_token(authorization_grant, username, sifu_domain)
                 cr.session['sifu_token'] = sifu_token
 
-            #check of user notebook & base notebook exists
+            #check if user notebook & base notebook exists
             if not self.user_notebook_exists(username, course_unit_name, resource, sifu_token, sifu_domain):
-                print("User notebook does not exist")
+                log.debug(u'[JupyterNotebook Xblock] : User notebook does not exist.')
                 # check the base file exists
                 if not self.base_file_exists(course_unit_name, resource, sifu_token, sifu_domain):
-                    print("Base file definitely does not exist")
+                    log.debug(u'[JupyterNotebook Xblock] : The course unit base notebook does not exist.')
                     # create the base file
                     self.create_base_file(course_unit_name, resource, sifu_token, sifu_domain, host)
                 # create user notebook assuming the base file exists
                 if not self.create_user_notebook(username, course_unit_name, resource, sifu_token, sifu_domain):
-                    print("Could not create user notebook")
+                    log.debug(u'[JupyterNotebook Xblock] : Could create {}\'s notebook'.format(username))
 
             context = {
                 'self': self,
@@ -288,15 +226,12 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         payload = {"notey_notey":{"username":username,"course":course_unit_name,"file":resource}}
         try:
             resp = requests.request("GET", url, data=json.dumps(payload), headers=headers)
-            try:
-                resp.raise_for_status()
-            except requests.exceptions.HTTPError as e:
-                print("HTTPError:", e.message)
-                return False
+            resp.raise_for_status()
+
             resp = resp.json()
             return resp["result"]
-        except requests.exceptions.RequestException as e:
-            print(e)
+        except (requests.exceptions.RequestException, requests.exceptions.HTTPError) as e:
+            log.debug(u'[JupyterNotebook Xblock] : RequestException occured in user_notebook_exists: {}'.format(e))
             return False
 
     def get_xblock_notebook(self, host):
@@ -376,8 +311,6 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         """
         Returns the url for the API call to fetch a notebook
         """
-        if host == '0.0.0.0:8000':
-           sifu_domain = '0.0.0.0'
         params = (sifu_domain, urllib.quote(username), urllib.quote(course), urllib.quote(filename), sifu_token)
         url = "http://%s:3334/v1/api/notebooks/users/%s/courses/%s/files/%s?Authorization=Bearer %s" % params
         return url
