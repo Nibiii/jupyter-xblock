@@ -1,4 +1,4 @@
-"""Setup for jupyterhub_xblock XBlock."""
+"""Setup for JupyterNotebookXBlock XBlock."""
 
 import os
 from setuptools import setup
@@ -21,19 +21,19 @@ def package_data(pkg, roots):
 
 
 setup(
-    name='jupyterhub_xblock-xblock',
+    name='edx-xblock-jupyter',
     version='0.1',
-    description='jupyterhub_xblock XBlock',   # TODO: write a better description.
+    description='Xblock that integrates Jupyter Notebooks into course units.',   # TODO: write a better description.
     packages=[
-        'jupyterhub_xblock',
+        'edx-xblock-jupyter',
     ],
     install_requires=[
         'XBlock',
     ],
     entry_points={
         'xblock.v1': [
-            'jupyterhub_xblock = jupyterhub_xblock:JupyterhubXBlock',
+            'edx-xblock-jupyter = edx-xblock-jupyter:JupyterNotebookXBlock',
         ]
     },
-    package_data=package_data("jupyterhub_xblock", ["static", "public"]),
+    package_data=package_data("edx-xblock-jupyter", ["static", "public"]),
 )

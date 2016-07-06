@@ -30,9 +30,8 @@ from auth import get_headers, get_auth_token, parse_auth_code, get_sifu_id, get_
 # Globals
 log = logging.getLogger(__name__)
 
-@XBlock.needs('request')
 @XBlock.needs('user')
-class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
+class JupyterNotebookXBlock(StudioEditableXBlockMixin, XBlock):
 
     display_name = String(
         display_name="Display Name",
@@ -68,7 +67,6 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         """
         Render a form for editing this XBlock
         """
-
         fragment = Fragment()
         context = {'fields': [],
                    'courseKey': self.location.course_key}
@@ -119,7 +117,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             sifu_domain = self.get_config('sifu_domain')
             sifu_token = None
             # it looks like these might be single use tokens
-            cr.session['sifu_token'] = None
+            #cr.session['sifu_token'] = None
             try:
                 sifu_token = cr.session['sifu_token']
             except:
