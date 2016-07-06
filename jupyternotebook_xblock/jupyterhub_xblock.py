@@ -36,7 +36,7 @@ class JupyterNotebookXBlock(StudioEditableXBlockMixin, XBlock):
     display_name = String(
         display_name="Display Name",
         help="Display name for this module",
-        default="Jupyterhub",
+        default="JupyterNotebook",
         scope=Scope.settings,
     )
 
@@ -82,9 +82,9 @@ class JupyterNotebookXBlock(StudioEditableXBlockMixin, XBlock):
             if field_info is not None:
                 context["fields"].append(field_info)
         fragment.content = self.render_template('static/html/studio_edit.html', context)
-        fragment.add_css(self.resource_string("static/css/jupyterhub_xblock.css"))
+        fragment.add_css(self.resource_string("static/css/jupyternotebook_xblock.css"))
         fragment.add_javascript(self.resource_string("static/js/src/studio_edit.js"))
-        fragment.initialize_js('JupyterhubStudioEditableXBlock')
+        fragment.initialize_js('JupyternotebookStudioEditableXBlock')
         return fragment
 
     def get_config(self, key):
@@ -150,11 +150,11 @@ class JupyterNotebookXBlock(StudioEditableXBlockMixin, XBlock):
                 'user_is_staff': self.runtime.user_is_staff,
                 'current_url_resource': None,
             }
-        template = self.render_template("static/html/jupyterhub_xblock.html", context)
+        template = self.render_template("static/html/jupyternotebook_xblock.html", context)
         frag = Fragment(template)
-        frag.add_css(self.resource_string("static/css/jupyterhub_xblock.css"))
-        frag.add_javascript(self.resource_string("static/js/src/jupyterhub_xblock.js"))
-        frag.initialize_js('JupyterhubXBlock')
+        frag.add_css(self.resource_string("static/css/jupyternotebook_xblock.css"))
+        frag.add_javascript(self.resource_string("static/js/src/jupyternotebook_xblock.js"))
+        frag.initialize_js('JupyternotebookXBlock')
         return frag
 
     def user_notebook_exists(self, username, course_unit_name, resource, sifu_token, sifu_domain):
@@ -262,7 +262,7 @@ class JupyterNotebookXBlock(StudioEditableXBlockMixin, XBlock):
         return template.render(Context(context))
 
     def _make_field_info(self, field_name, field):
-        info = super(JupyterhubXBlock, self)._make_field_info(field_name, field)
+        info = super(JupyternotebookXBlock, self)._make_field_info(field_name, field)
         if field_name == 'file_noteBook':
             info['type'] = 'file_uploader'
         return info
@@ -271,9 +271,9 @@ class JupyterNotebookXBlock(StudioEditableXBlockMixin, XBlock):
     def workbench_scenarios():
         """A canned scenario for display in the workbench."""
         return [
-            ("JupyterhubXBlock",
+            ("JupyternotebookXBlock",
              """<vertical_demo>
-                <jupyterhub_xblock/>
+                <jupyternotebook_xblock/>
                 </vertical_demo>
              """),
         ]
