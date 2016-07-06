@@ -25,7 +25,7 @@ from provider.oauth2.models import Client
 
 import logging
 
-from utils import parse_auth_code, get_sifu_id, get_authorization_grant
+from auth import get_headers, get_auth_token, parse_auth_code, get_sifu_id, get_authorization_grant, destroy_sifu_token
 
 # Globals
 log = logging.getLogger(__name__)
@@ -59,17 +59,6 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
 
     editable_fields = ('display_name', 'file_noteBook', 'course_unit')
 
-    def needs_authorization_header(func):
-        """
-        Maybe put this into its own Auth class singleton
-        Decorator to make sure API calls are authorized
-        """
-        def function_wrapper(self, token=None):
-            auth = func(self, token)
-            auth.update({"Authorization":"Bearer %s" % token})
-            return auth
-        return function_wrapper
-
     def resource_string(self, path):
         """Handy helper for getting resources from our kit."""
         data = pkg_resources.resource_string(__name__, path)
@@ -100,57 +89,10 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         fragment.initialize_js('JupyterhubStudioEditableXBlock')
         return fragment
 
-    def destroy_sifu_token(self, sifu_token, sifu_domain):
-        """
-        Removes the login associated with this token
-        """
-        url = "http://%s:3334/revoke" % sifu_domain
-        payload = {
-            "token_type_hint":"access_token",
-            "token":sifu_token,
-        }
-        headers = self.get_headers()
-        try:
-            response = requests.request("POST", url, data=json.dumps(payload), headers=headers)
-            return True
-        except requests.exceptions.RequestException as e:
-            log.debug(u'[JupyterNotebook Xblock] : RequestException occured in destroy_sifu_token: {}'.format(e))
-            return False
-
-    def get_auth_token(self, auth_grant, username, sifu_domain):
-        """
-        Gets the authentication token associated with this user through Sifu's
-        calls to the edx oauth2 api.
-        """
-        payload = {
-            "username":username,
-            "auth_code":auth_grant,
-            "grant_type":"edx_auth_code"
-        }
-        url = 'http://%s:3334/token' % sifu_domain
-
-        headers = self.get_headers()
-        try:
-            resp = requests.post(url, data=json.dumps(payload), headers=headers)
-            try:
-                resp.raise_for_status()
-            except requests.exceptions.HTTPError as e:
-                print("HTTPError:", e.message)
-                return None
-            try:
-                json_response = resp.json()
-            except:
-                return None
-            else:
-                return json_response["access_token"]
-        except requests.exceptions.RequestException as e:
-            log.debug(u'[JupyterNotebook Xblock] : RequestException occured in get_auth_token: {}'.format(e))
-            return None
-
-    def get_sifu_domain(self):
+    def get_config(self, key):
         os.chdir(os.path.dirname(__file__))
         config = yaml.safe_load(open("%s/config.yml" % os.getcwd(), 'r'))
-        return config['sifu_domain']
+        return config[key]
 
     def student_view(self, context=None, request=None):
         if not self.runtime.user_is_staff:
@@ -174,7 +116,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
             authorization_grant = get_authorization_grant(token, sessionid, host)
 
             # Get a token from Sifu
-            sifu_domain = self.get_sifu_domain()
+            sifu_domain = self.get_config('sifu_domain')
             sifu_token = None
             # it looks like these might be single use tokens
             cr.session['sifu_token'] = None
@@ -184,7 +126,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
                 cr.session['sifu_token'] = None
 
             if sifu_token is None:
-                sifu_token = self.get_auth_token(authorization_grant, username, sifu_domain)
+                sifu_token = get_auth_token(authorization_grant, username, sifu_domain)
                 cr.session['sifu_token'] = sifu_token
 
             #check if user notebook & base notebook exists
@@ -221,9 +163,10 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         """
         Tests to see if user notebook exists
         """
-        headers = self.get_headers(sifu_token)
+        headers = get_headers(sifu_token)
         url = 'http://%s:3334/v1/api/notebooks/users/courses/files' % sifu_domain
         payload = {"notey_notey":{"username":username,"course":course_unit_name,"file":resource}}
+
         try:
             resp = requests.request("GET", url, data=json.dumps(payload), headers=headers)
             resp.raise_for_status()
@@ -239,9 +182,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         Gets the uploaded notebook from studio
         NB!!! (requires that studio be running) NB!! <----- LOOK HERE
         """
-        # for now
-        host = '0.0.0.0'
-        url = "http://%s:8001/%s" % (host, self.file_noteBook)
+        url = "http://%s/%s" % (host, self.file_noteBook)
         print(url)
         try:
             resp = requests.request("GET", url)
@@ -252,11 +193,12 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
 
     def base_file_exists(self, course_unit_name, resource, sifu_token, sifu_domain):
         base_url = "http://%s:3334/%s"
-        headers = self.get_headers(sifu_token)
+        headers = get_headers(sifu_token)
         api_endpoint = "v1/api/notebooks/courses/files/"
         response = None
         url = base_url % (sifu_domain, api_endpoint)
         payload = {"notey_notey":{"course":course_unit_name,"file":resource}}
+
         try:
             # TODO check for auth-403 alreadystarted-400 doesntexist-404
             resp = requests.request("GET", url, data=json.dumps(payload), headers=headers)
@@ -273,12 +215,13 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
 
     def create_base_file(self, course_unit_name, resource, sifu_token, sifu_domain, host):
         base_url = "http://%s:3334/%s"
-        headers = self.get_headers(sifu_token)
+        headers = get_headers(sifu_token)
         api_endpoint = "v1/api/notebooks/courses/files/"
         response = None
         url = base_url % (sifu_domain, api_endpoint)
         loaded_file = self.get_xblock_notebook(host)
         payload = {"notey_notey":{"course":course_unit_name,"file":resource,"data":loaded_file}}
+
         try:
             # TODO check for auth-403 alreadystarted-400 doesntexist-404
             response = requests.request("POST", url, data=json.dumps(payload), headers=headers)
@@ -289,7 +232,7 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
 
     def create_user_notebook(self, username, course_unit_name, resource, sifu_token, sifu_domain):
         base_url = "http://%s:3334/%s"
-        headers = self.get_headers(sifu_token)
+        headers = get_headers(sifu_token)
         api_endpoint = "v1/api/notebooks/users/courses/files/"
         response = None
         url = base_url % (sifu_domain, api_endpoint)
@@ -311,17 +254,9 @@ class JupyterhubXBlock(StudioEditableXBlockMixin, XBlock):
         """
         Returns the url for the API call to fetch a notebook
         """
-        params = (sifu_domain, urllib.quote(username), urllib.quote(course), urllib.quote(filename), sifu_token)
+        params = ('0.0.0.0', urllib.quote(username), urllib.quote(course), urllib.quote(filename), sifu_token)
         url = "http://%s:3334/v1/api/notebooks/users/%s/courses/%s/files/%s?Authorization=Bearer %s" % params
         return url
-
-    @needs_authorization_header
-    def get_headers(self, sifu_token=None):
-        headers = {
-            'referer': "0.0.0.0:8000",
-            'content-type': "application/json"
-            }
-        return headers
 
     def render_template(self, template_path, context):
         template_str = self.resource_string(template_path)

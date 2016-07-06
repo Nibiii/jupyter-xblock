@@ -21,6 +21,54 @@ import logging
 # Globals
 log = logging.getLogger(__name__)
 
+def needs_authorization_header(func):
+    """
+    Maybe put this into its own Auth class singleton
+    Decorator to make sure API calls are authorized
+    """
+    def function_wrapper(token=None):
+        auth = func(token)
+        auth.update({"Authorization":"Bearer %s" % token})
+        return auth
+    return function_wrapper
+
+@needs_authorization_header
+def get_headers(sifu_token=None):
+    headers = {
+        'referer': "0.0.0.0:8000",
+        'content-type': "application/json"
+    }
+    return headers
+
+def get_auth_token(auth_grant, username, sifu_domain):
+    """
+    Gets the authentication token associated with this user through Sifu's
+    calls to the edx oauth2 api.
+    """
+    payload = {
+        "username":username,
+        "auth_code":auth_grant,
+        "grant_type":"edx_auth_code"
+    }
+    url = 'http://%s:3334/token' % sifu_domain
+    headers = get_headers()
+    try:
+        resp = requests.post(url, data=json.dumps(payload), headers=headers)
+        try:
+            resp.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            print("HTTPError:", e.message)
+            return None
+        try:
+            json_response = resp.json()
+        except:
+            return None
+        else:
+            return json_response["access_token"]
+    except requests.exceptions.RequestException as e:
+        log.debug(u'[JupyterNotebook Xblock] : RequestException occured in get_auth_token: {}'.format(e))
+        return None
+
 def get_authorization_grant(token, sessionid, host):
     """
     Get the authorization code for this user, for use in allowing edx to be
@@ -78,3 +126,20 @@ def get_sifu_id():
         log.debug(u'[JupyterNotebook Xblock] : Oauth2 client is not set up in the Admin backend.')
         return client
     return client['client_id']
+
+def destroy_sifu_token(sifu_token, sifu_domain):
+    """
+    Removes the login associated with this token
+    """
+    url = "http://%s:3334/revoke" % sifu_domain
+    payload = {
+        "token_type_hint":"access_token",
+        "token":sifu_token,
+    }
+    headers = get_headers()
+    try:
+        response = requests.request("POST", url, data=json.dumps(payload), headers=headers)
+        return True
+    except requests.exceptions.RequestException as e:
+        log.debug(u'[JupyterNotebook Xblock] : RequestException occured in destroy_sifu_token: {}'.format(e))
+        return False
