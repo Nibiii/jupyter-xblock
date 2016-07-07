@@ -66,7 +66,7 @@ Studio needs to be running in order for Instructors to use the Xblock, and uploa
 2. The Xblock requests an access token from Sifu, the authorization grant is sent along with.
 3. Sifu checks the authorization grant is valid for the user, and then creates a token for access to its services. The token is returned to the Xblock.
 4. In all other calls to Sifu, this token is presented in the header data so that the call is authenticated. The only exception is when the Xblock is requesting a notebook. In this scenario the token is placed in the query string, because the query string is the notebook iframe's url. This is actually not ideal (or safe!), and we are actively looking at alternate means of providing the token in the header for iframe calls.
-5. Once the Xblock is autheticated for a user it:
+5. Once the Xblock is authenticated for a user it:
     - Checks if the course unit's base notebook exists remotely. If not, it uploads it.
     - If the base file does exist, it checks if the user's notebook exists. If not it creates it.
     - If the user's notebook exists, it renders the notebook in the iframe.
