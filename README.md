@@ -15,7 +15,7 @@ Once the Docker deployment is done, you will need to take note of the
 domain name or ip address associated with that deployment.
 
 ## 2 Configuration settings
-In jupyterhub_xblock/config.yml specify the details from 1:
+In jupyternotebook_xblock/config.yml specify the details from 1:
 ```yml
 'sifu_domain': 'sifu_exmaple.com'
 ```
@@ -108,7 +108,7 @@ setup.py:
     .
     .
     packages=[
-        'jupyterhub_xblock',
+        'edx_xblock_jupyter',
     ]
 ```
 5. Save changes.

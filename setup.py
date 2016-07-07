@@ -25,15 +25,15 @@ setup(
     version='0.1',
     description='Xblock that integrates Jupyter Notebooks into course units.',   # TODO: write a better description.
     packages=[
-        'edx-xblock-jupyter',
+        'edx_xblock_jupyter',
     ],
     install_requires=[
         'XBlock',
     ],
     entry_points={
         'xblock.v1': [
-            'edx-xblock-jupyter = edx-xblock-jupyter:JupyterNotebookXBlock',
+            'edx_xblock_jupyter = edx_xblock_jupyter:JupyterNotebookXBlock',
         ]
     },
-    package_data=package_data("edx-xblock-jupyter", ["static", "public"]),
+    package_data=package_data("edx_xblock_jupyter", ["static", "public"]),
 )
