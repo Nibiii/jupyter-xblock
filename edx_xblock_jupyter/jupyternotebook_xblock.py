@@ -93,7 +93,8 @@ class JupyterNotebookXBlock(StudioEditableXBlockMixin, XBlock):
         return config[key]
 
     def student_view(self, context=None, request=None):
-        if not self.runtime.user_is_staff:
+        cr = CrequestMiddleware.get_request()
+        if not self.runtime.user_is_staff and cr is not None:
             user_service = self.runtime.service(self, 'user')
             xb_user = user_service.get_current_user()
             username = xb_user.opt_attrs.get('edx-platform.username')
@@ -104,7 +105,6 @@ class JupyterNotebookXBlock(StudioEditableXBlockMixin, XBlock):
             course_unit_name = str(self.course_unit)
             resource = str(self.file_noteBook)
 
-            cr = CrequestMiddleware.get_request()
             token = csrf.get_token(cr)
             sessionid = cr.session.session_key
 
