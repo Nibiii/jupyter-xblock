@@ -84,7 +84,7 @@ class JupyterNotebookXBlock(StudioEditableXBlockMixin, XBlock):
         fragment.content = self.render_template('static/html/studio_edit.html', context)
         fragment.add_css(self.resource_string("static/css/jupyternotebook_xblock.css"))
         fragment.add_javascript(self.resource_string("static/js/src/studio_edit.js"))
-        fragment.initialize_js('JupyternotebookStudioEditableXBlock')
+        fragment.initialize_js('JupyterNotebookStudioEditableXBlock')
         return fragment
 
     def get_config(self, key):
@@ -117,7 +117,7 @@ class JupyterNotebookXBlock(StudioEditableXBlockMixin, XBlock):
             sifu_domain = self.get_config('sifu_domain')
             sifu_token = None
             # it looks like these might be single use tokens
-            #cr.session['sifu_token'] = None
+            cr.session['sifu_token'] = None
             try:
                 sifu_token = cr.session['sifu_token']
             except:
@@ -154,7 +154,7 @@ class JupyterNotebookXBlock(StudioEditableXBlockMixin, XBlock):
         frag = Fragment(template)
         frag.add_css(self.resource_string("static/css/jupyternotebook_xblock.css"))
         frag.add_javascript(self.resource_string("static/js/src/jupyternotebook_xblock.js"))
-        frag.initialize_js('JupyternotebookXBlock')
+        frag.initialize_js('JupyterNotebookXBlock')
         return frag
 
     def user_notebook_exists(self, username, course_unit_name, resource, sifu_token, sifu_domain):
@@ -262,7 +262,7 @@ class JupyterNotebookXBlock(StudioEditableXBlockMixin, XBlock):
         return template.render(Context(context))
 
     def _make_field_info(self, field_name, field):
-        info = super(JupyternotebookXBlock, self)._make_field_info(field_name, field)
+        info = super(JupyterNotebookXBlock, self)._make_field_info(field_name, field)
         if field_name == 'file_noteBook':
             info['type'] = 'file_uploader'
         return info
@@ -271,7 +271,7 @@ class JupyterNotebookXBlock(StudioEditableXBlockMixin, XBlock):
     def workbench_scenarios():
         """A canned scenario for display in the workbench."""
         return [
-            ("JupyternotebookXBlock",
+            ("JupyterNotebookXBlock",
              """<vertical_demo>
                 <jupyternotebook_xblock/>
                 </vertical_demo>

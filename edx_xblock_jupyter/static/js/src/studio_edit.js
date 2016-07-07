@@ -1,5 +1,5 @@
 /* Javascript for JupyterhubStudioEditableXBlock. */
-function JupyterhubStudioEditableXBlock(runtime, element) {
+function JupyterNotebookStudioEditableXBlock(runtime, element) {
     "use strict";
 
     var fields = [];

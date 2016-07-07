@@ -1,5 +1,5 @@
 /* Javascript for JupyterhubXBlock. */
-function JupyterhubXBlock(runtime, element) {
+function JupyterNotebookXBlock(runtime, element) {
   // run api call that returns a set-cookie
   $(document).ready(function() {
     $.ajax({
