@@ -1,1 +1,1 @@
-from .jupyterhub_xblock import JupyterhubXBlock
+from .jupyternotebook_xblock import JupyterNotebookXBlock
