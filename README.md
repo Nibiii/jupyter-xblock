@@ -1,4 +1,4 @@
-# edx_xblock_jupyter
+# edx-xblock-jupyter
 
 XBlock intended to display and manage Jupyter Notebooks.
 The Xblock requires the following:
@@ -24,8 +24,9 @@ The Xblock requires the following:
           Or add to ansible deployment.
         * In order to handle Oauth2 grant flows, the xblock needs access to session ID's, and other Cookie data.
           Update  INSTALLED_APPS and MIDDLEWARE_CLASSES as follows:
-          ```py
+          ```.py
            INSTALLED_APPS += ('crequest')
+
            MIDDLEWARE_CLASSES += (
                ...
                'crequest.middleware.CrequestMiddleware',
