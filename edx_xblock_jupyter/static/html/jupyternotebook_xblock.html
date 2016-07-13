@@ -3,7 +3,11 @@
     <p>
       Add a course item notebook <a href=""></a>
     </p>
-  {% elif current_url_resource %}
+    {% elif current_url_resource %}
+    <script>
+      var sifu_url = '{{ sifu_url }}';
+      var sifu_token = '{{ sifu_token }}';
+    </script>
     <iframe id='iframe-jupyter'
             src='{{ current_url_resource }}'
             width='100%'
@@ -11,6 +15,12 @@
             marginwidth='0'
             marginheight='0'
             frameborder='0'
-            scrolling='yes'>You need an iFrame capable browser to view this.</iframe>
+            scrolling='yes'>You need an iFrame capable browser to view this.
+    </iframe>
   {% endif%}
 </div>
+<!-- Web component version, very buggy but better probably
+<script src="webcomponents.min.js"></script>
+<script src="//cdn.polyfill.io/v1/polyfill.min.js" async defer></script>
+<link rel="import" href='{{ current_url_resource }}'>
+ -->

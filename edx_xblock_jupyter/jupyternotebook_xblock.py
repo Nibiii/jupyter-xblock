@@ -30,6 +30,7 @@ from auth import get_headers, get_auth_token, parse_auth_code, get_sifu_id, get_
 # Globals
 log = logging.getLogger(__name__)
 
+@XBlock.needs('response')
 @XBlock.needs('user')
 class JupyterNotebookXBlock(StudioEditableXBlockMixin, XBlock):
 
@@ -126,6 +127,8 @@ class JupyterNotebookXBlock(StudioEditableXBlockMixin, XBlock):
             if sifu_token is None:
                 sifu_token = get_auth_token(authorization_grant, username, sifu_domain)
                 cr.session['sifu_token'] = sifu_token
+                cr.session.save()
+                cr.session.modified = True
 
             #check if user notebook & base notebook exists
             if not self.user_notebook_exists(username, course_unit_name, resource, sifu_token, sifu_domain):
@@ -140,6 +143,8 @@ class JupyterNotebookXBlock(StudioEditableXBlockMixin, XBlock):
                     log.debug(u'[JupyterNotebook Xblock] : Could create {}\'s notebook'.format(username))
 
             context = {
+                "sifu_token": sifu_token,
+                'sifu_url': 'http://%s:3334/v1/api/set-cookie/' % sifu_domain,
                 'self': self,
                 'user_is_staff': self.runtime.user_is_staff,
                 'current_url_resource': self.get_current_url_resource(username, course_unit_name, resource, sifu_token, sifu_domain, host),
@@ -181,7 +186,6 @@ class JupyterNotebookXBlock(StudioEditableXBlockMixin, XBlock):
         NB!!! (requires that studio be running) NB!! <----- LOOK HERE
         """
         url = "http://%s/%s" % (host, self.file_noteBook)
-        print(url)
         try:
             resp = requests.request("GET", url)
             return resp.content
@@ -252,8 +256,8 @@ class JupyterNotebookXBlock(StudioEditableXBlockMixin, XBlock):
         """
         Returns the url for the API call to fetch a notebook
         """
-        params = ('0.0.0.0', urllib.quote(username), urllib.quote(course), urllib.quote(filename), sifu_token)
-        url = "http://%s:3334/v1/api/notebooks/users/%s/courses/%s/files/%s?Authorization=Bearer %s" % params
+        params = (sifu_domain, urllib.quote(username), urllib.quote(course), urllib.quote(filename))
+        url = "http://%s:3334/v1/api/notebooks/users/%s/courses/%s/files/%s" % params
         return url
 
     def render_template(self, template_path, context):

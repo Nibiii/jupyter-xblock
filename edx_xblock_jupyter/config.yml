@@ -1,2 +1,2 @@
-'sifu_domain': '10.0.2.2'
+'sifu_domain': 'prov-dock.us-west-2.elasticbeanstalk.com'
 'studio_domain': '0.0.0.0:8001'

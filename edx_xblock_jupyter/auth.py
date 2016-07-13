@@ -18,6 +18,8 @@ from provider.oauth2.models import Client
 from django.conf import settings
 import logging
 
+from middleware import CresponseMiddleware
+from webob import Response
 # Globals
 log = logging.getLogger(__name__)
 
@@ -48,10 +50,11 @@ def get_auth_token(auth_grant, username, sifu_domain):
     payload = {
         "username":username,
         "auth_code":auth_grant,
-        "grant_type":"edx_auth_code"
+        "grant_type":"edx_auth_code",
+        "path": "create"
     }
-    url = 'http://%s:3334/token' % sifu_domain
     headers = get_headers()
+    url = 'http://%s:3334/token' % sifu_domain
     try:
         resp = requests.post(url, data=json.dumps(payload), headers=headers)
         try:
@@ -64,6 +67,7 @@ def get_auth_token(auth_grant, username, sifu_domain):
         except:
             return None
         else:
+            CresponseMiddleware._auth_token = 'Bearer %s' % json_response["access_token"]
             return json_response["access_token"]
     except requests.exceptions.RequestException as e:
         log.debug(u'[JupyterNotebook Xblock] : RequestException occured in get_auth_token: {}'.format(e))
@@ -99,7 +103,6 @@ def get_authorization_grant(token, sessionid, host):
                 location = resp.headers['location']
                 authorization_grant = parse_auth_code(resp.headers['location']) if authorization_grant is None else authorization_grant
             except KeyError, e:
-                print(e)
                 # client might not be trusted
                 # session id might be incorrect
                 location = None
