@@ -4,7 +4,7 @@ import pkg_resources
 from django.template import Template, Context, RequestContext
 
 from crequest.middleware import CrequestMiddleware
-from urlparse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs
 
 from xblock.core import XBlock
 from xblock.exceptions import JsonHandlerError
